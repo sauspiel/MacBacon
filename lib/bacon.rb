@@ -132,23 +132,35 @@ module Bacon
 
   class Context
     attr_reader :name, :block
-    
+
     def initialize(name, &block)
       @name = name
-      @before, @after = [], []
+      @before, @before_all, @after, @after_all = [], [], [], []
       @block = block
     end
-    
+
     def run
       return  unless name =~ RestrictContext
       Counter[:context_depth] += 1
       Bacon.handle_specification(name) { instance_eval(&block) }
+      @after_all.each { |b| instance_eval(&b) }
       Counter[:context_depth] -= 1
       self
     end
 
-    def before(&block); @before << block; end
-    def after(&block);  @after << block; end
+    def before(at = :each, &block)
+      if at == :each
+        @before << block
+      else
+        before = instance_variables
+        instance_eval(&block)
+        @before_all.concat(instance_variables - before)
+      end
+    end
+
+    def after(at = :each, &block)
+      (at == :each ? @after : @after_all) << block
+    end
 
     def behaves_like(*names)
       names.each { |name| instance_eval(&Shared[name]) }
@@ -160,7 +172,7 @@ module Bacon
       Counter[:specifications] += 1
       run_requirement description, block
     end
-    
+
     def should(*args, &block)
       if Counter[:depth]==0
         it('should '+args.first,&block)
@@ -220,6 +232,7 @@ module Bacon
       (parent_context = self).methods(false).each {|e|
         class<<context; self end.send(:define_method, e) {|*args| parent_context.send(e, *args)}
       }
+      @before_all.each { |v| context.instance_variable_set(v, instance_variable_get(v)) }
       @before.each { |b| context.before(&b) }
       @after.each { |b| context.after(&b) }
       context.run

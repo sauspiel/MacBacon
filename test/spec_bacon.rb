@@ -256,6 +256,16 @@ describe "Bacon" do
 end
 
 describe "before/after" do
+  before :all do
+    @d ||= 0
+    @d += 1
+  end
+
+  after :all do
+    @d += 1
+    @d.should.equal 2
+  end
+
   before do
     @a = 1
     @b = 2
@@ -273,40 +283,55 @@ describe "before/after" do
   after do
     @a.should.equal 3
   end
-  
+
   it "should run in the right order" do
     @a.should.equal 2
     @b.should.equal 2
+    @d.should.equal 1
   end
-  
+
   describe "when nested" do
+    after :all do
+      @d.should > 2
+    end
+
+    before :all do
+      @d += 1
+    end
+
     before do
       @c = 5
     end
-    
+
     it "should run from higher level" do
       @a.should.equal 2
       @b.should.equal 2
+      @d.should.equal 2
     end
-    
+
     it "should run at the nested level" do
       @c.should.equal 5
     end
-    
+
     before do
       @a = 5
     end
-    
+
     it "should run in the right order" do
       @a.should.equal 5
       @a = 2
     end
+
+    before :each do
+      @d += 1
+    end
   end
-  
+
   it "should not run from lower level" do
     @c.should.be.nil
+    @d.should.equal 1
   end
-  
+
   describe "when nested at a sibling level" do
     it "should not run from sibling level" do
       @c.should.be.nil
