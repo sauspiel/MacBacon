@@ -143,7 +143,9 @@ module Bacon
       return  unless name =~ RestrictContext
       Counter[:context_depth] += 1
       Bacon.handle_specification(name) { instance_eval(&block) }
-      catch_errors("after :all") { @after_all.each { |block| instance_eval(&block) } }
+      catch_errors("in after(:all) block") do
+        @after_all.each { |block| instance_eval(&block) }
+      end
       Counter[:context_depth] -= 1
       self
     end
@@ -152,7 +154,7 @@ module Bacon
       if at == :each
         @before << block
       else
-        catch_errors("before :all") do
+        catch_errors("in before(:all) block") do
           before = instance_variables
           instance_eval(&block)
           @before_all_ivars.concat(instance_variables - before)
