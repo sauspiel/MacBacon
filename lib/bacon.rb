@@ -135,7 +135,7 @@ module Bacon
 
     def initialize(name, &block)
       @name = name
-      @before, @before_all, @after, @after_all = [], [], [], []
+      @before, @before_all_ivars, @after, @after_all = [], [], [], [], []
       @block = block
     end
 
@@ -143,7 +143,7 @@ module Bacon
       return  unless name =~ RestrictContext
       Counter[:context_depth] += 1
       Bacon.handle_specification(name) { instance_eval(&block) }
-      @after_all.each { |b| instance_eval(&b) }
+      catch_errors("after :all") { @after_all.each { |block| instance_eval(&block) } }
       Counter[:context_depth] -= 1
       self
     end
@@ -152,9 +152,11 @@ module Bacon
       if at == :each
         @before << block
       else
-        before = instance_variables
-        instance_eval(&block)
-        @before_all.concat(instance_variables - before)
+        catch_errors("before :all") do
+          before = instance_variables
+          instance_eval(&block)
+          @before_all_ivars.concat(instance_variables - before)
+        end
       end
     end
 
@@ -183,8 +185,7 @@ module Bacon
 
     def run_requirement(description, spec)
       Bacon.handle_requirement description do
-        begin
-          Counter[:depth] += 1
+        catch_errors description do
           rescued = false
           begin
             @before.each { |block| instance_eval(&block) }
@@ -204,25 +205,6 @@ module Bacon
               raise e  unless rescued
             end
           end
-        rescue Object => e
-          ErrorLog << "#{e.class}: #{e.message}\n"
-          e.backtrace.find_all { |line| line !~ /bin\/bacon|\/bacon\.rb:\d+/ }.
-            each_with_index { |line, i|
-            ErrorLog << "\t#{line}#{i==0 ? ": #@name - #{description}" : ""}\n"
-          }
-          ErrorLog << "\n"
-
-          if e.kind_of? Error
-            Counter[e.count_as] += 1
-            e.count_as.to_s.upcase
-          else
-            Counter[:errors] += 1
-            "ERROR: #{e.class}"
-          end
-        else
-          ""
-        ensure
-          Counter[:depth] -= 1
         end
       end
     end
@@ -232,7 +214,7 @@ module Bacon
       (parent_context = self).methods(false).each {|e|
         class<<context; self end.send(:define_method, e) {|*args| parent_context.send(e, *args)}
       }
-      @before_all.each { |v| context.instance_variable_set(v, instance_variable_get(v)) }
+      @before_all_ivars.each { |v| context.instance_variable_set(v, instance_variable_get(v)) }
       @before.each { |b| context.before(&b) }
       @after.each { |b| context.after(&b) }
       context.run
@@ -241,6 +223,34 @@ module Bacon
     def raise?(*args, &block); block.raise?(*args); end
     def throw?(*args, &block); block.throw?(*args); end
     def change?(*args, &block); block.change?(*args); end
+
+    private
+
+    def catch_errors(description)
+      begin
+        Counter[:depth] += 1
+        yield
+      rescue Object => e
+        ErrorLog << "#{e.class}: #{e.message}\n"
+        e.backtrace.find_all { |line| line !~ /bin\/bacon|\/bacon\.rb:\d+/ }.
+          each_with_index { |line, i|
+          ErrorLog << "\t#{line}#{i==0 ? ": #@name - #{description}" : ""}\n"
+        }
+        ErrorLog << "\n"
+
+        if e.kind_of? Error
+          Counter[e.count_as] += 1
+          e.count_as.to_s.upcase
+        else
+          Counter[:errors] += 1
+          "ERROR: #{e.class}"
+        end
+      else
+        ""
+      ensure
+        Counter[:depth] -= 1
+      end
+    end
   end
 end
 

@@ -292,7 +292,7 @@ describe "before/after" do
 
   describe "when nested" do
     after :all do
-      @d.should > 2
+      @d.should == 2
     end
 
     before :all do
