@@ -1,4 +1,4 @@
-= Bacon -- small RSpec clone.
+= MacBacon -- small RSpec clone.
 
    "Truth will sooner come out from error than from confusion."
                                                ---Francis Bacon
@@ -6,6 +6,10 @@
 Bacon is a small RSpec clone weighing less than 350 LoC but
 nevertheless providing all essential features.
 
+This MacBacon fork is created and maintained by Eloy Durán (@alloy).
+It differs with regular Bacon in that it operates properly in a
+NSRunloop based environment. I.e. MacRuby/Objective-C. See the
+paragraph about the `wait` command for more info.
 
 == Whirl-wind tour
 
@@ -256,11 +260,6 @@ spec-converter is a simple tool to convert test-unit or dust style
 tests to test/spec specs.
 
 It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
-
-
-== MacBacon note
-
-This fork is created and maintained by Eloy Durán (@alloy).
 
 
 == Thanks to
