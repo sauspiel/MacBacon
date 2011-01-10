@@ -23,9 +23,10 @@ def git_tree_version
     @tree_version ||= `git describe`.strip.sub('-', '.')
     @tree_version << ".0"  unless @tree_version.count('.') == 2
   else
-    $: << "lib"
-    require 'bacon'
-    @tree_version = Bacon::VERSION
+    #$: << "lib"
+    #require 'mac_bacon'
+    #@tree_version = Bacon::VERSION
+    @tree_version = "1.1"
   end
   @tree_version
 end
@@ -35,7 +36,7 @@ def gem_version
 end
 
 def release
-  "bacon-#{git_tree_version}"
+  "macbacon-#{git_tree_version}"
 end
 
 def manifest
@@ -69,12 +70,12 @@ end
 
 desc "Generate RDox"
 task "RDOX" do
-  sh "bin/macbacon -Ilib --automatic --specdox >RDOX"
+  sh "macruby -Ilib bin/macbacon --automatic --specdox >RDOX"
 end
 
 desc "Run all the tests"
 task :test do
-  ruby "bin/macbacon -Ilib --automatic --quiet"
+  sh "macruby -Ilib bin/macbacon --automatic --quiet"
 end
 
 
@@ -91,32 +92,36 @@ rescue LoadError
   # Too bad.
 else
   spec = Gem::Specification.new do |s|
-    s.name            = "bacon"
+    s.name            = "mac_bacon"
     s.version         = gem_version
     s.platform        = Gem::Platform::RUBY
-    s.summary         = "a small RSpec clone"
+    s.summary         = "a small RSpec clone for MacRuby"
 
     s.description = <<-EOF
 Bacon is a small RSpec clone weighing less than 350 LoC but
 nevertheless providing all essential features.
 
-http://github.com/chneukirchen/bacon
+This MacBacon fork differs with regular Bacon in that it operates
+properly in a NSRunloop based environment. I.e. MacRuby/Objective-C.
+
+https://github.com/alloy/MacBacon
     EOF
 
     s.files           = manifest + %w(RDOX ChangeLog)
     s.bindir          = 'bin'
-    s.executables     << 'bacon'
+    s.executables     << 'macbacon'
     s.require_path    = 'lib'
     s.has_rdoc        = true
     s.extra_rdoc_files = ['README', 'RDOX']
     s.test_files      = []
 
-    s.author          = 'Christian Neukirchen'
-    s.email           = 'chneukirchen@gmail.com'
-    s.homepage        = 'http://github.com/chneukirchen/bacon'
+    s.author          = 'Eloy Durán'
+    s.email           = 'eloy.de.enige@gmail.com'
+    s.homepage        = 'https://github.com/alloy/MacBacon'
   end
 
-  task :gem => [:chmod, :changelog]
+  #task :gem => [:chmod, :changelog]
+  task :gem => [:chmod]
 
   Rake::GemPackageTask.new(spec) do |p|
     p.gem_spec = spec
@@ -135,6 +140,6 @@ Rake::RDocTask.new(:rdoc) do |rdoc|
   rdoc.rdoc_files.include 'README'
   rdoc.rdoc_files.include 'COPYING'
   rdoc.rdoc_files.include 'RDOX'
-  rdoc.rdoc_files.include('lib/bacon.rb')
+  rdoc.rdoc_files.include('lib/mac_bacon.rb')
 end
 task :rdoc => ["RDOX"]
