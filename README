@@ -9,7 +9,7 @@ nevertheless providing all essential features.
 
 == Whirl-wind tour
 
-    require 'bacon'
+    require 'mac_bacon'
     
     describe 'A new array' do
       before do
@@ -39,6 +39,13 @@ nevertheless providing all essential features.
         @ary.should.not.be.same_as Array.new
       end
     
+      it 'should perform a long running operation' do
+        @ary.performSelector("addObject:", withObject:"soup", afterDelay:0.5)
+        wait 0.6 do
+          @ary.size.should.be 1
+        end
+      end
+    
       # Custom assertions are trivial to do, they are lambdas returning a
       # boolean vale:
       palindrome = lambda { |obj| obj == obj.reverse }
@@ -55,30 +62,31 @@ Now run it:
 
     $ bacon whirlwind.rb
     A new array
-    - should be empty
-    - should have zero size
-    - should raise on trying fetch any index
-    - should have an object identity
-    - should be a palindrome
-    - should have super powers [FAILED]
-    
+      - should be empty
+      - should have zero size
+      - should raise on trying fetch any index
+      - should have an object identity
+      - should perform a long running operation
+      - should be a palindrome
+      - should have super powers [MISSING]
+
     Bacon::Error: no super powers found
-    	./whirlwind.rb:39: A new array - should have super powers
-    	./whirlwind.rb:38
-    	./whirlwind.rb:3
-    
-    6 specifications (9 requirements), 1 failures, 0 errors
+    	./whirlwind.rb:44:in `block': A new array - should have super powers
+
+    Bacon::Error: empty specification: A new array should have super powers
+
+    7 specifications (10 requirements), 1 failures, 0 errors
 
 If you want shorter output, use the Test::Unit format:
 
     $ bacon -q whirlwind.rb
-    .....F
+    ......F
     Bacon::Error: no super powers found
     	./whirlwind.rb:39: A new array - should have super powers
     	./whirlwind.rb:38
     	./whirlwind.rb:3
     
-    6 tests, 9 assertions, 1 failures, 0 errors
+    7 tests, 10 assertions, 1 failures, 0 errors
 
 It also supports TAP:
 
@@ -88,20 +96,19 @@ It also supports TAP:
     ok 3        - should raise on trying fetch any index
     ok 4        - should have an object identity
     ok 5        - should be a palindrome
-    not ok 6    - should have super powers: FAILED
+    ok 6        - should perform a long running operation
+    not ok 7    - should have super powers: FAILED
     # Bacon::Error: no super powers found
-    # 	./whirlwind.rb:39: A new array - should have super powers
-    # 	./whirlwind.rb:38
-    # 	./whirlwind.rb:3
-    1..6
-    # 6 tests, 9 assertions, 1 failures, 0 errors
+    # 	./whirlwind.rb:44: A new array - should have super powers
+    1..7
+    # 7 tests, 10 assertions, 1 failures, 0 errors
 
     $ bacon -p whirlwind.rb | taptap -q
     Tests took 0.00 seconds.
-    FAILED tests 6
-       6) should have super powers: FAILED
+    FAILED tests 7
+       7) should have super powers: FAILED
 
-    Failed 1/6 tests, 83.33% okay.
+    Failed 1/7 tests, 83.33% okay.
 
 (taptap is available from http://chneukirchen.org/repos/taptap/)
 
@@ -113,14 +120,13 @@ As of Bacon 1.1, it also supports Knock:
     ok - should raise on trying fetch any index
     ok - should have an object identity
     ok - should be a palindrome
+    ok - should perform a long running operation
     not ok - should have super powers: FAILED
     # Bacon::Error: no super powers found
-    # 	./whirlwind.rb:39: A new array - should have super powers
-    # 	./whirlwind.rb:38
-    # 	./whirlwind.rb:3
+    # 	./whirlwind.rb:4: A new array - should have super powers
 
     $ bacon -k whirlwind.rb | kn-sum
-    6 tests, 1 failed (83.3333% succeeded)
+    7 tests, 1 failed (83.3333% succeeded)
 
 (knock is available from http://github.com/chneukirchen/knock/)
 
@@ -189,6 +195,30 @@ example:
 
 You can use modules and extend to group matchers for use in multiple
 contexts.
+
+
+== wait
+
+Often in Objective-C apps, code will *not* execute immediately, but
+scheduled on a runloop for later execution. Therefor a mechanism is
+needed that will postpone execution of some assertions for a period of
+time. This is where the `wait` macro comes in:
+
+      it 'should perform a long running operation' do
+        # Here a method call is scheduled to be performed ~0.5 seconds in the future
+        @ary.performSelector("addObject:", withObject:"soup", afterDelay:0.5)
+        wait 0.6 do
+          # This block is executed ~0.6 seconds in the future
+          @ary.size.should.be 1
+        end
+      end
+
+The postponed block does *not* halt the thread, but is scheduled on
+the runloop as well. This means that your runloop based code will have
+a chance to perform its job before the assertions in the block are
+executed.
+
+You can schedule as many blocks as you’d want and even nest them.
 
 
 == bacon standalone runner
