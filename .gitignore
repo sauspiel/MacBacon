@@ -1,4 +1,6 @@
 *~
+*.swp
+*.swo
 ChangeLog
 TODO
 RDOX

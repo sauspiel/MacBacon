@@ -116,3 +116,4 @@ files.each { |file|
   load file
 }
 
+Bacon.run

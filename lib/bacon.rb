@@ -7,6 +7,8 @@
 # Bacon is freely distributable under the terms of an MIT-style license.
 # See COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+framework "Cocoa"
+
 module Bacon
   VERSION = "1.1"
 
@@ -22,17 +24,18 @@ module Bacon
   Backtraces = true  unless defined? Backtraces
 
   def self.summary_on_exit
-    return  if Counter[:installed_summary] > 0
-    @timer = Time.now
-    at_exit {
-      handle_summary
-      if $!
-        raise $!
-      elsif Counter[:errors] + Counter[:failed] > 0
-        exit 1
-      end
-    }
-    Counter[:installed_summary] += 1
+    # TODO
+    #return  if Counter[:installed_summary] > 0
+    #@timer = Time.now
+    #at_exit {
+      #handle_summary
+      #if $!
+        #raise $!
+      #elsif Counter[:errors] + Counter[:failed] > 0
+        #exit 1
+      #end
+    #}
+    #Counter[:installed_summary] += 1
   end
   class <<self; alias summary_at_exit summary_on_exit; end
 
@@ -130,21 +133,169 @@ module Bacon
     end
   end
 
+  class Specification
+    attr_reader :description
+
+    def initialize(context, description, block, before_filters, after_filters)
+      @context, @description, @block = context, description, block
+      @before_filters, @after_filters = before_filters.dup, after_filters.dup
+
+      @postponed_blocks_count = 0
+      @exception_occurred = false
+    end
+
+    def run_before_filters
+      puts "Run before filters!"
+      @before_filters.each { |f| @context.instance_eval(&f) }
+    end
+
+    def run_after_filters
+      puts "Run after filters!"
+      @after_filters.each { |f| @context.instance_eval(&f) }
+    end
+
+    def run
+      puts "RUN SPEC!"
+      execute_block do
+        Counter[:depth] += 1
+        run_before_filters
+        @number_of_requirements_before = Counter[:requirements]
+        puts "Eval spec!"
+        @context.instance_eval(&@block)
+      end
+
+      finalize if @postponed_blocks_count == 0
+    end
+
+    def postpone_block(seconds, &block)
+      # If an exception occurred, we definitely don't need to schedule any more blocks
+      unless @exception_occurred
+        @postponed_blocks_count += 1
+        performSelector("run_postponed_block:", withObject:block, afterDelay:seconds)
+      end
+    end
+
+    def run_postponed_block(block)
+      # If an exception occurred, we definitely don't need execute any more blocks
+      execute_block(&block) unless @exception_occurred
+      @postponed_blocks_count -= 1
+      finalize if @postponed_blocks_count == 0
+    end
+
+    def finalize
+      puts "Finalize!"
+      if Counter[:requirements] == @number_of_requirements_before
+        # the specification did not contain any requirements, so it flunked
+        # TODO ugh, exceptions for control flow, need to clean this up
+        execute_block { raise Error.new(:missing, "empty specification: #{@context.name} #{@description}") }
+      end
+
+      execute_block { run_after_filters }
+
+      Counter[:depth] -= 1
+      @context.specification_did_finish(self)
+    end
+
+    def execute_block
+      begin
+        yield
+      rescue Object => e
+        @exception_occurred = true
+
+        ErrorLog << "#{e.class}: #{e.message}\n"
+        e.backtrace.find_all { |line| line !~ /bin\/bacon|\/bacon\.rb:\d+/ }.
+          each_with_index { |line, i|
+          ErrorLog << "\t#{line}#{i==0 ? ": #{@context.name} - #{@description}" : ""}\n"
+        }
+        ErrorLog << "\n"
+
+        if e.kind_of? Error
+          Counter[e.count_as] += 1
+          e.count_as.to_s.upcase
+        else
+          Counter[:errors] += 1
+          "ERROR: #{e.class}"
+        end
+      end
+    end
+  end
+
+  def self.add_context(context)
+    (@contexts ||= []) << context
+  end
+
+  def self.current_context_index
+    @current_context_index ||= 0
+  end
+
+  def self.current_context
+    @contexts[current_context_index]
+  end
+
+  def self.run
+    puts "[!] Will run context: #{current_context.name}"
+    current_context.performSelector("_run", withObject:nil, afterDelay:0)
+    NSApplication.sharedApplication.run # TODO check if it's already running?
+  end
+
+  def self.context_did_finish(context)
+    if (@current_context_index + 1) < @contexts.size
+      @current_context_index += 1
+      run
+    else
+      # DONE
+      handle_summary
+      NSApplication.sharedApplication.terminate(self)
+    end
+  end
+
   class Context
     attr_reader :name, :block
     
-    def initialize(name, &block)
+    def initialize(name, before = nil, after = nil, &block)
       @name = name
-      @before, @after = [], []
+      @before, @after = (before ? before.dup : []), (after ? after.dup : [])
       @block = block
+      @specifications = []
+      @current_specification_index = 0
+
+      Bacon.add_context(self)
+
+      instance_eval(&block)
     end
-    
+
     def run
-      return  unless name =~ RestrictContext
-      Counter[:context_depth] += 1
-      Bacon.handle_specification(name) { instance_eval(&block) }
+      # TODO noop
+    end
+
+    def _run
+      # TODO
+      #return  unless name =~ RestrictContext
+      if spec = current_specification
+        Counter[:context_depth] += 1
+        puts "[!] Will run specification: #{spec.description}"
+        spec.performSelector("run", withObject:nil, afterDelay:0)
+      else
+        puts "Context finished!"
+        Bacon.context_did_finish(self)
+      end
+    end
+
+    def current_specification
+      @specifications[@current_specification_index]
+    end
+
+    def specification_did_finish(spec)
+      puts "A spec finished!"
       Counter[:context_depth] -= 1
-      self
+      if (@current_specification_index + 1) < @specifications.size
+        puts "Will have to run the next spec!"
+        @current_specification_index += 1
+        _run
+      else
+        puts "Context finished!"
+        Bacon.context_did_finish(self)
+      end
     end
 
     def before(&block); @before << block; end
@@ -158,7 +309,7 @@ module Bacon
       return  unless description =~ RestrictName
       block ||= lambda { should.flunk "not implemented" }
       Counter[:specifications] += 1
-      run_requirement description, block
+      @specifications << Specification.new(self, description, block, @before, @after)
     end
     
     def should(*args, &block)
@@ -169,60 +320,18 @@ module Bacon
       end
     end
 
-    def run_requirement(description, spec)
-      Bacon.handle_requirement description do
-        begin
-          Counter[:depth] += 1
-          rescued = false
-          begin
-            @before.each { |block| instance_eval(&block) }
-            prev_req = Counter[:requirements]
-            instance_eval(&spec)
-          rescue Object => e
-            rescued = true
-            raise e
-          ensure
-            if Counter[:requirements] == prev_req and not rescued
-              raise Error.new(:missing,
-                              "empty specification: #{@name} #{description}")
-            end
-            begin
-              @after.each { |block| instance_eval(&block) }
-            rescue Object => e
-              raise e  unless rescued
-            end
-          end
-        rescue Object => e
-          ErrorLog << "#{e.class}: #{e.message}\n"
-          e.backtrace.find_all { |line| line !~ /bin\/bacon|\/bacon\.rb:\d+/ }.
-            each_with_index { |line, i|
-            ErrorLog << "\t#{line}#{i==0 ? ": #@name - #{description}" : ""}\n"
-          }
-          ErrorLog << "\n"
-
-          if e.kind_of? Error
-            Counter[e.count_as] += 1
-            e.count_as.to_s.upcase
-          else
-            Counter[:errors] += 1
-            "ERROR: #{e.class}"
-          end
-        else
-          ""
-        ensure
-          Counter[:depth] -= 1
-        end
-      end
-    end
+    # TODO
+    #def run_requirement(description, spec)
+      #Bacon.handle_requirement description do
+      #end
+    #end
 
     def describe(*args, &block)
-      context = Bacon::Context.new(args.join(' '), &block)
+      context = Bacon::Context.new(args.join(' '), @before, @after, &block)
       (parent_context = self).methods(false).each {|e|
         class<<context; self end.send(:define_method, e) {|*args| parent_context.send(e, *args)}
       }
-      @before.each { |b| context.before(&b) }
-      @after.each { |b| context.after(&b) }
-      context.run
+      context
     end
 
     def raise?(*args, &block); block.raise?(*args); end
@@ -278,13 +387,13 @@ end
 
 
 class Object
-  def should(*args, &block)    Should.new(self).be(*args, &block)             end
+  def should(*args, &block)    Should.new(self).be(*args, &block)         end
 end
 
 module Kernel
   private
-  def describe(*args, &block) Bacon::Context.new(args.join(' '), &block).run  end
-  def shared(name, &block)    Bacon::Shared[name] = block                     end
+  def describe(*args, &block) Bacon::Context.new(args.join(' '), &block)  end
+  def shared(name, &block)    Bacon::Shared[name] = block                 end
 end
 
 class Should
