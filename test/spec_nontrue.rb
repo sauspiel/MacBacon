@@ -1,3 +1,5 @@
+require File.expand_path('../../lib/mac_bacon', __FILE__)
+
 $false_is_not_true = false.should.not.be.true
 $nil_is_not_true = nil.should.not.be.true
 

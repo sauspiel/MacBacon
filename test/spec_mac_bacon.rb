@@ -1,3 +1,5 @@
+require File.expand_path('../../lib/mac_bacon', __FILE__)
+
 describe "NSRunloop aware Bacon" do
   it "allows the user to postpone execution of a block for n seconds, which will halt any further execution of specs" do
     started_at_1 = started_at_2 = started_at_3 = Time.now

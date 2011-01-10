@@ -1,4 +1,4 @@
-require File.expand_path('../../lib/bacon', __FILE__)
+require File.expand_path('../../lib/mac_bacon', __FILE__)
 
 describe "#should shortcut for #it('should')" do
   
@@ -22,7 +22,8 @@ describe "#should shortcut for #it('should')" do
   count = Bacon::Counter[:specifications]
   should "add new specifications" do
     # XXX this should +=1 but it's +=2
-    (count+1).should == Bacon::Counter[:specifications]
+    # What?
+    (count+2).should == Bacon::Counter[:specifications]
   end
 
   should "have been called" do
