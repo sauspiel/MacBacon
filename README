@@ -265,6 +265,11 @@ tests to test/spec specs.
 It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
 
 
+== MacBacon note
+
+This fork is created and maintained by Eloy Durán (@alloy).
+
+
 == Thanks to
 
 * Michael Fellinger, for fixing Bacon for 1.9 and various improvements.
@@ -292,16 +297,26 @@ It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
   * Add Knock output.
   * Bug fixes.
 
+* January 10th, 2011: MacBacon fork release 1.1
+  * Make it work in a NSRunloop environment
+  * Add `wait'
+  * Remove extras, for now
 
 == Contact
 
-Please mail bugs, suggestions and patches to
-<mailto:chneukirchen@gmail.com>.
+Please mail bugs, suggestions and patches for Bacon to
+<mailto:chneukirchen@gmail.com>
 
 Git repository (patches rebased on HEAD are most welcome):
-http://github.com/chneukirchen/bacon
+https://github.com/chneukirchen/bacon
 git://github.com/chneukirchen/bacon.git
 
+For MacBacon contact
+<mailto:eloy.de.enige@gmail.com>
+
+And repository location:
+https://github.com/alloy/MacBacon
+git://github.com/alloy/MacBacon.git
 
 == Copying
 
