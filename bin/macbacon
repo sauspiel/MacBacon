@@ -9,7 +9,7 @@ automatic = false
 output = 'SpecDoxOutput'
 
 opts = OptionParser.new("", 24, '  ') { |opts|
-  opts.banner = "Usage: bacon [options] [files | -a] [-- untouched arguments]"
+  opts.banner = "Usage: macbacon [options] [files | -a] [-- untouched arguments]"
 
   opts.separator ""
   opts.separator "Ruby options:"
@@ -110,7 +110,6 @@ end
 require 'mac_bacon'
 
 Bacon.extend Bacon.const_get(output) rescue abort "No such formatter: #{output}"
-Bacon.summary_on_exit
 
 files.each { |file|
   load file

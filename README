@@ -237,9 +237,6 @@ You can schedule as many blocks as you’d want and even nest them.
   -n, --name NAME          runs tests matching regexp NAME
   -t, --testcase TESTCASE  runs tests in TestCases matching regexp TESTCASE
 
-If you don't want to use the standalone runner, run
-Bacon.summary_on_exit to install an exit handler showing the summary.
-
 
 == Object#should
 
@@ -247,7 +244,7 @@ You can use Object#should outside of contexts, where the result of
 assertion will be returned as a boolean.  This is nice for
 demonstrations, quick checks and doctest tests.
 
-    >> require 'bacon'
+    >> require 'mac_bacon'
     >> (1 + 1).should.equal 2
     => true
     >> (6*9).should.equal 42

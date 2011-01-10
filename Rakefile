@@ -69,12 +69,12 @@ end
 
 desc "Generate RDox"
 task "RDOX" do
-  sh "bin/bacon -Ilib --automatic --specdox >RDOX"
+  sh "bin/macbacon -Ilib --automatic --specdox >RDOX"
 end
 
 desc "Run all the tests"
 task :test do
-  ruby "bin/bacon -Ilib --automatic --quiet"
+  ruby "bin/macbacon -Ilib --automatic --quiet"
 end
 
 

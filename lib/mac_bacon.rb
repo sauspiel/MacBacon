@@ -23,11 +23,6 @@ module Bacon
 
   Backtraces = true  unless defined? Backtraces
 
-  def self.summary_on_exit
-    # TODO
-  end
-  class <<self; alias summary_at_exit summary_on_exit; end
-
   module SpecDoxOutput
     def handle_specification_begin(name)
       puts spaces + name
