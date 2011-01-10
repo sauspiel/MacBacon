@@ -322,18 +322,16 @@ module Bacon
       end
     end
 
-    # TODO
-    #def run_requirement(description, spec)
-      #Bacon.handle_requirement description do
-      #end
-    #end
-
     def describe(*args, &block)
       context = Bacon::Context.new(args.join(' '), @before, @after, &block)
       (parent_context = self).methods(false).each {|e|
         class<<context; self end.send(:define_method, e) {|*args| parent_context.send(e, *args)}
       }
       context
+    end
+
+    def wait(seconds, &block)
+      current_specification.postpone_block(seconds, &block)
     end
 
     def raise?(*args, &block); block.raise?(*args); end
