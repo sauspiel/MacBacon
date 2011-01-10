@@ -40,15 +40,19 @@ module Bacon
   class <<self; alias summary_at_exit summary_on_exit; end
 
   module SpecDoxOutput
-    def handle_specification(name)
+    def handle_specification_begin(name)
       puts spaces + name
-      yield
+    end
+
+    def handle_specification_end
       puts if Counter[:context_depth] == 1
     end
 
-    def handle_requirement(description)
+    def handle_requirement_begin(description)
       print "#{spaces}  - #{description}"
-      error = yield
+    end
+
+    def handle_requirement_end(error)
       puts error.empty? ? "" : " [#{error}]"
     end
 
@@ -64,10 +68,11 @@ module Bacon
   end
 
   module TestUnitOutput
-    def handle_specification(name)  yield  end
+    def handle_specification_begin(name); end
+    def handle_specification_end        ; end
 
-    def handle_requirement(description)
-      error = yield
+    def handle_requirement_begin(description) end
+    def handle_requirement_end(error)
       if error.empty?
         print "."
       else
@@ -84,11 +89,14 @@ module Bacon
   end
 
   module TapOutput
-    def handle_specification(name)  yield  end
+    def handle_specification_begin(name); end
+    def handle_specification_end        ; end
 
-    def handle_requirement(description)
+    def handle_requirement_begin(description)
       ErrorLog.replace ""
-      error = yield
+    end
+
+    def handle_requirement_end(error)
       if error.empty?
         puts "ok %-3d - %s" % [Counter[:specifications], description]
       else
@@ -106,11 +114,14 @@ module Bacon
   end
 
   module KnockOutput
-    def handle_specification(name)  yield  end
+    def handle_specification_begin(name); end
+    def handle_specification_end        ; end
 
-    def handle_requirement(description)
+    def handle_requirement_begin(description)
       ErrorLog.replace ""
-      error = yield
+    end
+
+    def handle_requirement_end(error)
       if error.empty?
         puts "ok - %s" % [description]
       else
@@ -142,25 +153,23 @@ module Bacon
 
       @postponed_blocks_count = 0
       @exception_occurred = false
+      @error = ""
     end
 
     def run_before_filters
-      puts "Run before filters!"
       @before_filters.each { |f| @context.instance_eval(&f) }
     end
 
     def run_after_filters
-      puts "Run after filters!"
       @after_filters.each { |f| @context.instance_eval(&f) }
     end
 
     def run
-      puts "RUN SPEC!"
+      Bacon.handle_requirement_begin(@description)
       execute_block do
         Counter[:depth] += 1
         run_before_filters
         @number_of_requirements_before = Counter[:requirements]
-        puts "Eval spec!"
         @context.instance_eval(&@block)
       end
 
@@ -183,7 +192,6 @@ module Bacon
     end
 
     def finalize
-      puts "Finalize!"
       if Counter[:requirements] == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
         # TODO ugh, exceptions for control flow, need to clean this up
@@ -193,6 +201,7 @@ module Bacon
       execute_block { run_after_filters }
 
       Counter[:depth] -= 1
+      Bacon.handle_requirement_end(@error)
       @context.specification_did_finish(self)
     end
 
@@ -209,7 +218,7 @@ module Bacon
         }
         ErrorLog << "\n"
 
-        if e.kind_of? Error
+        @error = if e.kind_of? Error
           Counter[e.count_as] += 1
           e.count_as.to_s.upcase
         else
@@ -233,12 +242,16 @@ module Bacon
   end
 
   def self.run
-    puts "[!] Will run context: #{current_context.name}"
-    current_context.performSelector("_run", withObject:nil, afterDelay:0)
+    @timer ||= Time.now
+    Counter[:context_depth] += 1
+    handle_specification_begin(current_context.name)
+    current_context.performSelector("run", withObject:nil, afterDelay:0)
     NSApplication.sharedApplication.run # TODO check if it's already running?
   end
 
   def self.context_did_finish(context)
+    handle_specification_end
+    Counter[:context_depth] -= 1
     if (@current_context_index + 1) < @contexts.size
       @current_context_index += 1
       run
@@ -265,18 +278,11 @@ module Bacon
     end
 
     def run
-      # TODO noop
-    end
-
-    def _run
       # TODO
       #return  unless name =~ RestrictContext
       if spec = current_specification
-        Counter[:context_depth] += 1
-        puts "[!] Will run specification: #{spec.description}"
         spec.performSelector("run", withObject:nil, afterDelay:0)
       else
-        puts "Context finished!"
         Bacon.context_did_finish(self)
       end
     end
@@ -286,14 +292,10 @@ module Bacon
     end
 
     def specification_did_finish(spec)
-      puts "A spec finished!"
-      Counter[:context_depth] -= 1
       if (@current_specification_index + 1) < @specifications.size
-        puts "Will have to run the next spec!"
         @current_specification_index += 1
-        _run
+        run
       else
-        puts "Context finished!"
         Bacon.context_did_finish(self)
       end
     end
