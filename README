@@ -60,7 +60,7 @@ nevertheless providing all essential features.
 
 Now run it:
 
-    $ bacon whirlwind.rb
+    $ macbacon whirlwind.rb
     A new array
       - should be empty
       - should have zero size
@@ -79,7 +79,7 @@ Now run it:
 
 If you want shorter output, use the Test::Unit format:
 
-    $ bacon -q whirlwind.rb
+    $ macbacon -q whirlwind.rb
     ......F
     Bacon::Error: no super powers found
     	./whirlwind.rb:39: A new array - should have super powers
@@ -90,7 +90,7 @@ If you want shorter output, use the Test::Unit format:
 
 It also supports TAP:
 
-    $ bacon -p whirlwind.rb
+    $ macbacon -p whirlwind.rb
     ok 1        - should be empty
     ok 2        - should have zero size
     ok 3        - should raise on trying fetch any index
@@ -103,7 +103,7 @@ It also supports TAP:
     1..7
     # 7 tests, 10 assertions, 1 failures, 0 errors
 
-    $ bacon -p whirlwind.rb | taptap -q
+    $ macbacon -p whirlwind.rb | taptap -q
     Tests took 0.00 seconds.
     FAILED tests 7
        7) should have super powers: FAILED
@@ -114,7 +114,7 @@ It also supports TAP:
 
 As of Bacon 1.1, it also supports Knock:
 
-    $ bacon -k whirlwind.rb
+    $ macbacon -k whirlwind.rb
     ok - should be empty
     ok - should have zero size
     ok - should raise on trying fetch any index
@@ -248,13 +248,6 @@ demonstrations, quick checks and doctest tests.
     => true
     >> (6*9).should.equal 42
     => false
-
-
-== Bacon with autotest
-
-Since version 1.0, there is autotest support.  You need to tag your
-test directories (test/ or spec/) by creating an .bacon file there.
-Autotest then will find it.  bin/bacon needs to be in PATH or RUBYPATH.
 
 
 == Converting specs
