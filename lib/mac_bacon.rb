@@ -25,17 +25,6 @@ module Bacon
 
   def self.summary_on_exit
     # TODO
-    #return  if Counter[:installed_summary] > 0
-    #@timer = Time.now
-    #at_exit {
-      #handle_summary
-      #if $!
-        #raise $!
-      #elsif Counter[:errors] + Counter[:failed] > 0
-        #exit 1
-      #end
-    #}
-    #Counter[:installed_summary] += 1
   end
   class <<self; alias summary_at_exit summary_on_exit; end
 
@@ -246,7 +235,7 @@ module Bacon
     Counter[:context_depth] += 1
     handle_specification_begin(current_context.name)
     current_context.performSelector("run", withObject:nil, afterDelay:0)
-    NSApplication.sharedApplication.run # TODO check if it's already running?
+    NSApplication.sharedApplication.run
   end
 
   def self.context_did_finish(context)
