@@ -1,5 +1,5 @@
 $-w,w = nil, $-w
-require File.expand_path('../../lib/mac_bacon', __FILE__)
+require File.expand_path('../spec_helper', __FILE__)
 $-w = w
 
 # Hooray for meta-testing.

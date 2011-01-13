@@ -8,6 +8,7 @@
 # See COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 framework "Cocoa"
+require "mac_bacon/helpers"
 
 module Bacon
   VERSION = "1.1"
