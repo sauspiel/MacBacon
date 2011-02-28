@@ -19,14 +19,15 @@ end
 
 # Helper to retrieve the "revision number" of the git tree.
 def git_tree_version
-  if File.directory?(".git")
+  #if File.directory?(".git")
+  if false
     @tree_version ||= `git describe`.strip.sub('-', '.')
     @tree_version << ".0"  unless @tree_version.count('.') == 2
   else
     #$: << "lib"
     #require 'mac_bacon'
     #@tree_version = Bacon::VERSION
-    @tree_version = "1.1"
+    @tree_version = "1.2"
   end
   @tree_version
 end
@@ -70,7 +71,10 @@ end
 
 desc "Generate RDox"
 task "RDOX" do
-  sh "macruby -Ilib bin/macbacon --automatic --specdox >RDOX"
+  begin
+    sh "macruby -Ilib bin/macbacon --automatic --specdox >RDOX"
+  rescue Exception
+  end
 end
 
 desc "Run all the tests"
