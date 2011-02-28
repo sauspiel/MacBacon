@@ -243,7 +243,7 @@ module Bacon
     else
       # DONE
       handle_summary
-      NSApplication.sharedApplication.terminate(self)
+      exit(Counter.values_at(:failed, :errors).inject(:+))
     end
   end
 
