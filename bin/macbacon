@@ -38,7 +38,7 @@ opts = OptionParser.new("", 24, '  ') { |opts|
   }
 
   opts.separator ""
-  opts.separator "bacon options:"
+  opts.separator "macbacon options:"
 
   opts.on("-s", "--specdox", "do AgileDox-like output (default)") {
     output = 'SpecDoxOutput'
@@ -86,7 +86,7 @@ opts = OptionParser.new("", 24, '  ') { |opts|
 
   opts.on_tail("--version", "Show version") do
     require 'mac_bacon'
-    puts "bacon #{Bacon::VERSION}"
+    puts "macbacon #{Bacon::VERSION}"
     exit
   end
 

@@ -27,7 +27,7 @@ def git_tree_version
     #$: << "lib"
     #require 'mac_bacon'
     #@tree_version = Bacon::VERSION
-    @tree_version = "1.2"
+    @tree_version = "1.2.1"
   end
   @tree_version
 end
