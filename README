@@ -225,6 +225,23 @@ executed.
 You can schedule as many blocks as you’d want and even nest them.
 
 
+== Load NIBs
+
+In case you have a NIB that defines the UI for the controller you're testing,
+then you can use the `load_nib' method to easily do so:
+
+      describe "PreferencesController" do
+        before do
+          @controller = PreferencesController.new
+          nib_path = File.join(SRC_ROOT, 'app/views/PreferencesWindow.xib')
+          @top_level_objects = load_nib(nib_path, @controller)
+        end
+        
+        # tests...
+        
+      end
+
+
 == bacon standalone runner
 
   -s, --specdox            do AgileDox-like output (default)
