@@ -182,13 +182,40 @@ module Bacon
       end
     end
 
+    def postpone_block_until_change(object_to_observe, key_path, timeout = 1, &block)
+      # If an exception occurred, we definitely don't need to schedule any more blocks
+      unless @exception_occurred
+        if @postponed_block
+          raise "Only one indefinite `wait' block at the same time is allowed!"
+        else
+          @postponed_blocks_count += 1
+          @postponed_block = block
+          object_to_observe.addObserver(self, forKeyPath:key_path, options:0, context:nil)
+          performSelector("postponed_change_block_timeout_exceeded:", withObject:[object_to_observe, key_path], afterDelay:timeout)
+        end
+      end
+    end
+
+    def observeValueForKeyPath(key_path, ofObject:object, change:_, context:__)
+      object.removeObserver(self, forKeyPath:key_path)
+      resume
+    end
+
+    def postponed_change_block_timeout_exceeded(object_and_key_path)
+      object, key_path = object_and_key_path
+      object.removeObserver(self, forKeyPath:key_path)
+      postponed_block_timeout_exceeded
+    end
+
     def postponed_block_timeout_exceeded
-      NSRunLoop.currentRunLoop.cancelPerformSelectorsWithTarget(self)
+      NSObject.cancelPreviousPerformRequestsWithTarget(@context)
+      NSObject.cancelPreviousPerformRequestsWithTarget(self)
       execute_block { raise "The postponed block timeout has been exceeded." }
       finish_spec
     end
 
     def resume
+      NSObject.cancelPreviousPerformRequestsWithTarget(self, selector:'postponed_block_timeout_exceeded', object:nil)
       block, @postponed_block = @postponed_block, nil
       run_postponed_block(block)
     end
@@ -347,8 +374,12 @@ module Bacon
       end
     end
 
-    def wait_max(seconds, &block)
-      current_specification.postpone_block(seconds, &block)
+    def wait_max(timeout, &block)
+      current_specification.postpone_block(timeout, &block)
+    end
+
+    def wait_for_change(object_to_observe, key_path, timeout = 1, &block)
+      current_specification.postpone_block_until_change(object_to_observe, key_path, timeout, &block)
     end
 
     def resume

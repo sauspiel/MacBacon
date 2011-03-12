@@ -1,18 +1,20 @@
 require File.expand_path('../spec_helper', __FILE__)
 
 describe "NSRunloop aware Bacon" do
-  it "allows the user to postpone execution of a block for n seconds, which will halt any further execution of specs" do
-    started_at_1 = started_at_2 = started_at_3 = Time.now
-    number_of_specs_before = Bacon::Counter[:specifications]
+  describe "concerning `wait' with a fixed time" do
+    it "allows the user to postpone execution of a block for n seconds, which will halt any further execution of specs" do
+      started_at_1 = started_at_2 = started_at_3 = Time.now
+      number_of_specs_before = Bacon::Counter[:specifications]
 
-    wait 0.5 do
-      (Time.now - started_at_1).should.be.close(0.5, 0.5)
-    end
-    wait 1 do
-      (Time.now - started_at_2).should.be.close(1, 0.5)
-      wait 1.5 do
-        (Time.now - started_at_3).should.be.close(2.5, 0.5)
-        Bacon::Counter[:specifications].should == number_of_specs_before
+      wait 0.5 do
+        (Time.now - started_at_1).should.be.close(0.5, 0.5)
+      end
+      wait 1 do
+        (Time.now - started_at_2).should.be.close(1, 0.5)
+        wait 1.5 do
+          (Time.now - started_at_3).should.be.close(2.5, 0.5)
+          Bacon::Counter[:specifications].should == number_of_specs_before
+        end
       end
     end
   end
@@ -24,7 +26,7 @@ describe "NSRunloop aware Bacon" do
     end
 
     it "allows the user to postpone execution of a block until Context#resume is called, from for instance a delegate callback" do
-      performSelector('delegateCallbackMethod', withObject:nil, afterDelay:0.2)
+      performSelector('delegateCallbackMethod', withObject:nil, afterDelay:0.1)
       @delegateCallbackCalled.should == nil
       wait do
         @delegateCallbackCalled.should == true
@@ -33,25 +35,6 @@ describe "NSRunloop aware Bacon" do
 
     def delegateCallbackTookTooLongMethod
       raise "Oh noes, I must never be called!"
-    end
-
-    def failures_before
-      @failures_before
-    end
-
-    def expect_spec_to_fail!
-      @failures_before = Bacon::Counter[:failures]
-      Bacon::Specification.class_eval do
-        alias_method :_real_finish_spec, :finish_spec
-        def finish_spec
-          @exception_occurred.should == true
-          @exception_occurred = nil
-          Bacon::Counter[:errors].should == @context.failures_before + 1
-          Bacon::Counter[:errors] = @context.failures_before
-          self.class.class_eval { alias_method :finish_spec, :_real_finish_spec }
-          _real_finish_spec
-        end
-      end
     end
 
     # This spec adds a failure to the ErrorLog!
@@ -68,7 +51,58 @@ describe "NSRunloop aware Bacon" do
     it "takes an explicit timeout" do
       expect_spec_to_fail!
       performSelector('delegateCallbackTookTooLongMethod', withObject:nil, afterDelay:0.8)
-      wait_max 0.5 do
+      wait_max 0.3 do
+        # we must never arrive here, because the default timeout of 1 second will have passed
+        raise "Oh noes, we shouldn't have arrived in this postponed block!"
+      end
+    end
+  end
+
+  describe "concerning `wait_for_change'" do
+    class MockObservable
+      attr_accessor :an_attribute
+    end
+
+    before do
+      @observable = MockObservable.new
+    end
+
+    def triggerChange
+      @observable.an_attribute = 'changed'
+    end
+
+    it "resumes the postponed block once an observed value changes" do
+      wait_for_change @observable, 'an_attribute' do
+        @value = @observable.an_attribute
+      end
+      @value.should == nil
+      performSelector('triggerChange', withObject:nil, afterDelay:0.1)
+      wait 0.2 do
+        @value.should == 'changed'
+      end
+    end
+
+    # This spec adds a failure to the ErrorLog!
+    it "has a default timeout of 1 second" do
+      expect_spec_to_fail!
+      wait_for_change(@observable, 'an_attribute') do
+        raise "Oh noes, I must never be called!"
+      end
+      performSelector('triggerChange', withObject:nil, afterDelay:1.1)
+      wait 1.2 do
+        # we must never arrive here, because the default timeout of 1 second will have passed
+        raise "Oh noes, we shouldn't have arrived in this postponed block!"
+      end
+    end
+
+    # This spec adds a failure to the ErrorLog!
+    it "takes an explicit timeout" do
+      expect_spec_to_fail!
+      wait_for_change(@observable, 'an_attribute', 0.3) do
+        raise "Oh noes, I must never be called!"
+      end
+      performSelector('triggerChange', withObject:nil, afterDelay:0.8)
+      wait 0.9 do
         # we must never arrive here, because the default timeout of 1 second will have passed
         raise "Oh noes, we shouldn't have arrived in this postponed block!"
       end
