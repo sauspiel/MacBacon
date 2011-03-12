@@ -1,5 +1,9 @@
 require File.expand_path('../spec_helper', __FILE__)
 
+class MockObservable
+  attr_accessor :an_attribute
+end
+
 describe "NSRunloop aware Bacon" do
   describe "concerning `wait' with a fixed time" do
     it "allows the user to postpone execution of a block for n seconds, which will halt any further execution of specs" do
@@ -59,10 +63,6 @@ describe "NSRunloop aware Bacon" do
   end
 
   describe "concerning `wait_for_change'" do
-    class MockObservable
-      attr_accessor :an_attribute
-    end
-
     before do
       @observable = MockObservable.new
     end
@@ -112,11 +112,11 @@ describe "NSRunloop aware Bacon" do
   describe "postponing blocks should work from before/after filters as well" do
     shared "waiting in before/after filters" do
       it "starts later because of postponed blocks in the before filter" do
-        (Time.now - @started_at).should.be.close(1, 0.2)
+        (Time.now - @started_at).should.be.close(1, 0.5)
       end
 
       it "starts even later because of the postponed blocks in the after filter" do
-        (Time.now - @started_at).should.be.close(3, 0.2)
+        (Time.now - @started_at).should.be.close(3, 0.5)
       end
     end
 
@@ -168,6 +168,37 @@ describe "NSRunloop aware Bacon" do
 
         behaves_like "waiting in before/after filters"
       end
+    end
+
+    describe "with `wait_for_change'" do
+      before do
+        @observable = MockObservable.new
+        @started_at ||= Time.now
+        performSelector('triggerChange', withObject:nil, afterDelay:0.5)
+        wait_for_change @observable, 'an_attribute' do
+          performSelector('triggerChange', withObject:nil, afterDelay:0.5)
+          wait_for_change @observable, 'an_attribute' do
+          end
+        end
+      end
+
+      after do
+        performSelector('triggerChange', withObject:nil, afterDelay:0.5)
+        wait_for_change @observable, 'an_attribute' do
+          performSelector('triggerChange', withObject:nil, afterDelay:0.5)
+          wait_for_change @observable, 'an_attribute' do
+            @time ||= 0
+            @time += 2
+            (Time.now - @started_at).should.be.close(@time, 1)
+          end
+        end
+      end
+
+      def triggerChange
+        @observable.an_attribute = 'changed'
+      end
+
+      behaves_like "waiting in before/after filters"
     end
   end
 end

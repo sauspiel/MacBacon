@@ -202,25 +202,28 @@ module Bacon
         else
           @postponed_blocks_count += 1
           @postponed_block = block
+          @observed_object_and_key_path = [object_to_observe, key_path]
           object_to_observe.addObserver(self, forKeyPath:key_path, options:0, context:nil)
-          performSelector("postponed_change_block_timeout_exceeded:", withObject:[object_to_observe, key_path], afterDelay:timeout)
+          performSelector("postponed_change_block_timeout_exceeded", withObject:nil, afterDelay:timeout)
         end
       end
     end
 
     def observeValueForKeyPath(key_path, ofObject:object, change:_, context:__)
-      # we add the observer again, just to be sure that the removeObserver:forKeyPath:
-      # message doesn't fail if the timeout has exceeded and the observer has already
-      # been removed.
-      object.addObserver(self, forKeyPath:key_path, options:0, context:nil)
-      object.removeObserver(self, forKeyPath:key_path)
       resume
     end
 
-    def postponed_change_block_timeout_exceeded(object_and_key_path)
-      object, key_path = object_and_key_path
-      object.removeObserver(self, forKeyPath:key_path)
+    def postponed_change_block_timeout_exceeded
+      remove_observer!
       postponed_block_timeout_exceeded
+    end
+
+    def remove_observer!
+      if @observed_object_and_key_path
+        object, key_path = @observed_object_and_key_path
+        object.removeObserver(self, forKeyPath:key_path)
+        @observed_object_and_key_path = nil
+      end
     end
 
     def postponed_block_timeout_exceeded
@@ -232,6 +235,8 @@ module Bacon
 
     def resume
       NSObject.cancelPreviousPerformRequestsWithTarget(self, selector:'postponed_block_timeout_exceeded', object:nil)
+      NSObject.cancelPreviousPerformRequestsWithTarget(self, selector:'postponed_change_block_timeout_exceeded', object:nil)
+      remove_observer!
       block, @postponed_block = @postponed_block, nil
       run_postponed_block(block)
     end
