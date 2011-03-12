@@ -110,31 +110,63 @@ describe "NSRunloop aware Bacon" do
   end
 
   describe "postponing blocks should work from before/after filters as well" do
-    describe "with `wait' and an explicit time" do
-      before do
-        @started_at ||= Time.now
-        wait 0.5 do
-          wait 0.5 do
-          end
-        end
-      end
-
-      after do
-        wait 0.5 do
-          wait 0.5 do
-            @time ||= 0
-            @time += 2
-            (Time.now - @started_at).should.be.close(@time, 0.2)
-          end
-        end
-      end
-
+    shared "waiting in before/after filters" do
       it "starts later because of postponed blocks in the before filter" do
         (Time.now - @started_at).should.be.close(1, 0.2)
       end
 
       it "starts even later because of the postponed blocks in the after filter" do
         (Time.now - @started_at).should.be.close(3, 0.2)
+      end
+    end
+
+    describe "with `wait'" do
+      describe "and an explicit time" do
+        before do
+          @started_at ||= Time.now
+          wait 0.5 do
+            wait 0.5 do
+            end
+          end
+        end
+
+        after do
+          wait 0.5 do
+            wait 0.5 do
+              @time ||= 0
+              @time += 2
+              (Time.now - @started_at).should.be.close(@time, 0.2)
+            end
+          end
+        end
+
+        behaves_like "waiting in before/after filters"
+      end
+
+      describe "and without explicit time" do
+        before do
+          @started_at ||= Time.now
+          performSelector('resume', withObject:nil, afterDelay:0.5)
+          wait do
+            performSelector('resume', withObject:nil, afterDelay:0.5)
+            wait do
+            end
+          end
+        end
+
+        after do
+          performSelector('resume', withObject:nil, afterDelay:0.5)
+          wait do
+            performSelector('resume', withObject:nil, afterDelay:0.5)
+            wait do
+              @time ||= 0
+              @time += 2
+              (Time.now - @started_at).should.be.close(@time, 0.2)
+            end
+          end
+        end
+
+        behaves_like "waiting in before/after filters"
       end
     end
   end

@@ -153,7 +153,10 @@ module Bacon
 
     def run_spec_block
       @ran_spec_block = true
-      execute_block { @context.instance_eval(&@block) }
+      # If an exception occurred, we definitely don't need to perform the actual spec anymore
+      unless @exception_occurred
+        execute_block { @context.instance_eval(&@block) }
+      end
       finish_spec unless postponed?
     end
 
