@@ -137,28 +137,37 @@ module Bacon
       @before_filters, @after_filters = before_filters.dup, after_filters.dup
 
       @postponed_blocks_count = 0
+      @ran_spec_block = false
+      @ran_after_filters = false
       @exception_occurred = false
       @error = ""
     end
 
+    def postponed?
+      @postponed_blocks_count != 0
+    end
+
     def run_before_filters
-      @before_filters.each { |f| @context.instance_eval(&f) }
+      execute_block { @before_filters.each { |f| @context.instance_eval(&f) } }
+    end
+
+    def run_spec_block
+      @ran_spec_block = true
+      execute_block { @context.instance_eval(&@block) }
+      finish_spec unless postponed?
     end
 
     def run_after_filters
-      @after_filters.each { |f| @context.instance_eval(&f) }
+      @ran_after_filters = true
+      execute_block { @after_filters.each { |f| @context.instance_eval(&f) } }
     end
 
     def run
       Bacon.handle_requirement_begin(@description)
-      execute_block do
-        Counter[:depth] += 1
-        run_before_filters
-        @number_of_requirements_before = Counter[:requirements]
-        @context.instance_eval(&@block)
-      end
-
-      finish_spec if @postponed_blocks_count == 0
+      Counter[:depth] += 1
+      run_before_filters
+      @number_of_requirements_before = Counter[:requirements]
+      run_spec_block unless postponed?
     end
 
     def schedule_block(seconds, &block)
@@ -197,6 +206,10 @@ module Bacon
     end
 
     def observeValueForKeyPath(key_path, ofObject:object, change:_, context:__)
+      # we add the observer again, just to be sure that the removeObserver:forKeyPath:
+      # message doesn't fail if the timeout has exceeded and the observer has already
+      # been removed.
+      object.addObserver(self, forKeyPath:key_path, options:0, context:nil)
       object.removeObserver(self, forKeyPath:key_path)
       resume
     end
@@ -208,9 +221,9 @@ module Bacon
     end
 
     def postponed_block_timeout_exceeded
-      NSObject.cancelPreviousPerformRequestsWithTarget(@context)
-      NSObject.cancelPreviousPerformRequestsWithTarget(self)
+      cancel_scheduled_requests!
       execute_block { raise "The postponed block timeout has been exceeded." }
+      @postponed_blocks_count = 0
       finish_spec
     end
 
@@ -224,18 +237,33 @@ module Bacon
       # If an exception occurred, we definitely don't need execute any more blocks
       execute_block(&block) unless @exception_occurred
       @postponed_blocks_count -= 1
-      finish_spec if @postponed_blocks_count == 0
+      unless postponed?
+        if @ran_after_filters
+          exit_spec
+        elsif @ran_spec_block
+          finish_spec
+        else
+          run_spec_block
+        end
+      end
     end
 
     def finish_spec
       if !@exception_occurred && Counter[:requirements] == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
-        # TODO ugh, exceptions for control flow, need to clean this up
         execute_block { raise Error.new(:missing, "empty specification: #{@context.name} #{@description}") }
       end
+      run_after_filters
+      exit_spec unless postponed?
+    end
 
-      execute_block { run_after_filters }
+    def cancel_scheduled_requests!
+      NSObject.cancelPreviousPerformRequestsWithTarget(@context)
+      NSObject.cancelPreviousPerformRequestsWithTarget(self)
+    end
 
+    def exit_spec
+      cancel_scheduled_requests!
       Counter[:depth] -= 1
       Bacon.handle_requirement_end(@error)
       @context.specification_did_finish(self)

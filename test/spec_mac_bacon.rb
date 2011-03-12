@@ -108,6 +108,36 @@ describe "NSRunloop aware Bacon" do
       end
     end
   end
+
+  describe "postponing blocks should work from before/after filters as well" do
+    describe "with `wait' and an explicit time" do
+      before do
+        @started_at ||= Time.now
+        wait 0.5 do
+          wait 0.5 do
+          end
+        end
+      end
+
+      after do
+        wait 0.5 do
+          wait 0.5 do
+            @time ||= 0
+            @time += 2
+            (Time.now - @started_at).should.be.close(@time, 0.2)
+          end
+        end
+      end
+
+      it "starts later because of postponed blocks in the before filter" do
+        (Time.now - @started_at).should.be.close(1, 0.2)
+      end
+
+      it "starts even later because of the postponed blocks in the after filter" do
+        (Time.now - @started_at).should.be.close(3, 0.2)
+      end
+    end
+  end
 end
 
 class WindowController < NSWindowController
