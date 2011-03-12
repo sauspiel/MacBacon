@@ -9,7 +9,7 @@ nevertheless providing all essential features.
 This MacBacon fork is created and maintained by Eloy Durán (@alloy).
 It differs with regular Bacon in that it operates properly in a
 NSRunloop based environment. I.e. MacRuby/Objective-C. See the
-paragraph about the `wait` command for more info.
+Objective-C runloop macros section for more info.
 
 == Whirl-wind tour
 
@@ -201,12 +201,20 @@ You can use modules and extend to group matchers for use in multiple
 contexts.
 
 
-== wait
+== Objective-C runloop macros
+
 
 Often in Objective-C apps, code will *not* execute immediately, but
 scheduled on a runloop for later execution. Therefor a mechanism is
-needed that will postpone execution of some assertions for a period of
-time. This is where the `wait` macro comes in:
+provided that will postpone execution of blocks for a period of time.
+
+You can event nest these blocks. However, with the exception of `wait'
+with an explicit time, you can *not* have multiple at the same time.
+
+All these macros may be used in before and after filters as well.
+
+
+==== `wait' with fixed period of time
 
       it 'should perform a long running operation' do
         # Here a method call is scheduled to be performed ~0.5 seconds in the future
@@ -217,12 +225,55 @@ time. This is where the `wait` macro comes in:
         end
       end
 
-The postponed block does *not* halt the thread, but is scheduled on
-the runloop as well. This means that your runloop based code will have
-a chance to perform its job before the assertions in the block are
-executed.
 
-You can schedule as many blocks as you’d want and even nest them.
+==== `wait' without fixed period of time, until `resume' is called
+
+By default this usage of `wait' will wait for 1 second. If `resume'
+has not been called by that time, the spec fails. If you want to
+specify the timeout use `wait_max(timeout, &block)' instead.
+
+      def aDelegateCallbackMethod(sender)
+        @delegateCallbackMethodCalled = true
+        resume
+      end
+
+      it 'should wait until notified' do
+        # Here a method is called that in the near future will result in the object calling back the delegate
+        @object.delegate = self
+        @object.startLongRunningMethod
+        wait do
+          # This block is executed once aDelegateCallbackMethod is called
+          @delegateCallbackMethodCalled.should == true
+        end
+      end
+
+
+==== `wait_for_change' (Key-Value Observing)
+
+This macro makes the specification an observer of the key path of the
+given object for the duration of the specification.
+
+By default this usage of `wait_for_change' will wait for 1 second. If
+the KVO message has not arrived by that time, the spec fails. If you
+want to specify the timeout use
+`wait_for_change(observable, key_path, timeout)' instead.
+
+      class AKeyValueObservableClass
+        attr_accessor :an_attribute
+
+        def compute_an_attribute
+          # trust me, this takes a few ms
+        end
+      end
+
+      it 'should wait until AKeyValueObservableClass#an_attribute changes' do
+        # Here a method is called that in the near future will update the 'an_attribute' value of the object
+        observable.compute_an_attribute
+        wait_for_change observable, 'an_attribute' do
+          # This block is executed once 'an_attribute' has changed value
+          observable.an_attribute.should == 'changed'
+        end
+      end
 
 
 == Load NIBs
