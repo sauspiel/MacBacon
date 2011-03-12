@@ -1,6 +1,7 @@
-= MacBacon -- small RSpec clone.
+MacBacon -- small RSpec clone.
+------------------------------
 
-   "Truth will sooner come out from error than from confusion."
+    "Truth will sooner come out from error than from confusion."
                                                ---Francis Bacon
 
 Bacon is a small RSpec clone weighing less than 350 LoC but
@@ -11,7 +12,8 @@ It differs with regular Bacon in that it operates properly in a
 NSRunloop based environment. I.e. MacRuby/Objective-C. See the
 Objective-C runloop macros section for more info.
 
-== Whirl-wind tour
+Whirl-wind tour
+===============
 
     require 'mac_bacon'
     
@@ -135,7 +137,8 @@ As of Bacon 1.1, it also supports Knock:
 (knock is available from http://github.com/chneukirchen/knock/)
 
 
-== Implemented assertions
+Implemented assertions
+======================
 
 * should.<predicate> and should.be.<predicate>
 * should.equal
@@ -147,7 +150,8 @@ As of Bacon 1.1, it also supports Knock:
 * should.satisfy { |object| }
 
 
-== Added core predicates
+Added core predicates
+=====================
 
 * Object#true?
 * Object#false?
@@ -157,7 +161,8 @@ As of Bacon 1.1, it also supports Knock:
 * Numeric#close?
 
 
-== before/after
+before/after
+============
 
 before and after need to be defined before the first specification in
 a context and are run before and after each specification.
@@ -165,7 +170,8 @@ a context and are run before and after each specification.
 As of Bacon 1.1, before and after do nest in nested contexts.
 
 
-== Shared contexts
+Shared contexts
+===============
 
 You can define shared contexts in Bacon like this:
 
@@ -186,127 +192,132 @@ behaves_like in other contexts.  You can use shared contexts to
 structure suites with many recurring specifications.
 
 
-== Matchers
+Matchers
+========
 
 Custom matchers are simply lambdas returning a boolean value, for
 example:
 
-  def shorter_than(max_size)
-    lambda { |obj| obj.size < max_size }
-  end
-
-  [1,2,3].should.be shorter_than(5)
+    def shorter_than(max_size)
+      lambda { |obj| obj.size < max_size }
+    end
+    
+    [1,2,3].should.be shorter_than(5)
 
 You can use modules and extend to group matchers for use in multiple
 contexts.
 
 
-== Objective-C runloop macros
+Objective-C runloop macros
+==========================
 
 
 Often in Objective-C apps, code will *not* execute immediately, but
 scheduled on a runloop for later execution. Therefor a mechanism is
 provided that will postpone execution of blocks for a period of time.
 
-You can event nest these blocks. However, with the exception of `wait'
+You can event nest these blocks. However, with the exception of `wait`
 with an explicit time, you can *not* have multiple at the same time.
 
 All these macros may be used in before and after filters as well.
 
 
-==== `wait' with fixed period of time
+### `wait` with fixed period of time
 
-      it 'should perform a long running operation' do
-        # Here a method call is scheduled to be performed ~0.5 seconds in the future
-        @ary.performSelector("addObject:", withObject:"soup", afterDelay:0.5)
-        wait 0.6 do
-          # This block is executed ~0.6 seconds in the future
-          @ary.size.should.be 1
-        end
+    it 'should perform a long running operation' do
+      # Here a method call is scheduled to be performed ~0.5 seconds in the future
+      @ary.performSelector("addObject:", withObject:"soup", afterDelay:0.5)
+      wait 0.6 do
+        # This block is executed ~0.6 seconds in the future
+        @ary.size.should.be 1
       end
+    end
 
 
-==== `wait' without fixed period of time, until `resume' is called
+### `wait` without fixed period of time, until `resume` is called
 
-By default this usage of `wait' will wait for 1 second. If `resume'
+By default this usage of `wait` will wait for 1 second. If `resume`
 has not been called by that time, the spec fails. If you want to
-specify the timeout use `wait_max(timeout, &block)' instead.
+specify the timeout use `wait_max(timeout, &block)` instead.
 
-      def aDelegateCallbackMethod(sender)
-        @delegateCallbackMethodCalled = true
-        resume
+    def aDelegateCallbackMethod(sender)
+      @delegateCallbackMethodCalled = true
+      resume
+    end
+
+    it 'should wait until notified' do
+      # Here a method is called that in the near future will result in the object calling back the delegate
+      @object.delegate = self
+      @object.startLongRunningMethod
+      wait do
+        # This block is executed once aDelegateCallbackMethod is called
+        @delegateCallbackMethodCalled.should == true
       end
-
-      it 'should wait until notified' do
-        # Here a method is called that in the near future will result in the object calling back the delegate
-        @object.delegate = self
-        @object.startLongRunningMethod
-        wait do
-          # This block is executed once aDelegateCallbackMethod is called
-          @delegateCallbackMethodCalled.should == true
-        end
-      end
+    end
 
 
-==== `wait_for_change' (Key-Value Observing)
+### `wait_for_change` (Key-Value Observing)
 
 This macro makes the specification an observer of the key path of the
 given object for the duration of the specification.
 
-By default this usage of `wait_for_change' will wait for 1 second. If
+By default this usage of `wait_for_change` will wait for 1 second. If
 the KVO message has not arrived by that time, the spec fails. If you
 want to specify the timeout use
-`wait_for_change(observable, key_path, timeout)' instead.
+`wait_for_change(observable, key_path, timeout)` instead.
 
-      class AKeyValueObservableClass
-        attr_accessor :an_attribute
+    class AKeyValueObservableClass
+      attr_accessor :an_attribute
 
-        def compute_an_attribute
-          # trust me, this takes a few ms
-        end
+      def compute_an_attribute
+        # trust me, this takes a few ms
       end
+    end
 
-      it 'should wait until AKeyValueObservableClass#an_attribute changes' do
-        # Here a method is called that in the near future will update the 'an_attribute' value of the object
-        observable.compute_an_attribute
-        wait_for_change observable, 'an_attribute' do
-          # This block is executed once 'an_attribute' has changed value
-          observable.an_attribute.should == 'changed'
-        end
+    it 'should wait until AKeyValueObservableClass#an_attribute changes' do
+      # Here a method is called that in the near future will update the 'an_attribute' value of the object
+      observable.compute_an_attribute
+      wait_for_change observable, 'an_attribute' do
+        # This block is executed once 'an_attribute' has changed value
+        observable.an_attribute.should == 'changed'
       end
+    end
 
 
-== Load NIBs
+Load NIBs
+=========
 
 In case you have a NIB that defines the UI for the controller you're testing,
-then you can use the `load_nib' method to easily do so:
+then you can use the `load_nib` method to easily do so:
 
-      describe "PreferencesController" do
-        before do
-          @controller = PreferencesController.new
-          nib_path = File.join(SRC_ROOT, 'app/views/PreferencesWindow.xib')
-          @top_level_objects = load_nib(nib_path, @controller)
-        end
-        
-        # tests...
-        
+    describe "PreferencesController" do
+      before do
+        @controller = PreferencesController.new
+        nib_path = File.join(SRC_ROOT, 'app/views/PreferencesWindow.xib')
+        @top_level_objects = load_nib(nib_path, @controller)
       end
+      
+      # tests...
+      
+    end
 
 
-== bacon standalone runner
+bacon standalone runner
+=======================
 
-  -s, --specdox            do AgileDox-like output (default)
-  -q, --quiet              do Test::Unit-like non-verbose output
-  -p, --tap                do TAP (Test Anything Protocol) output
-  -k, --knock              do Knock output
-  -o, --output FORMAT      do FORMAT (SpecDox/TestUnit/Tap) output
-  -Q, --no-backtrace       don't print backtraces  
-  -a, --automatic          gather tests from ./test/, include ./lib/
-  -n, --name NAME          runs tests matching regexp NAME
-  -t, --testcase TESTCASE  runs tests in TestCases matching regexp TESTCASE
+    -s, --specdox            do AgileDox-like output (default)
+    -q, --quiet              do Test::Unit-like non-verbose output
+    -p, --tap                do TAP (Test Anything Protocol) output
+    -k, --knock              do Knock output
+    -o, --output FORMAT      do FORMAT (SpecDox/TestUnit/Tap) output
+    -Q, --no-backtrace       don't print backtraces  
+    -a, --automatic          gather tests from ./test/, include ./lib/
+    -n, --name NAME          runs tests matching regexp NAME
+    -t, --testcase TESTCASE  runs tests in TestCases matching regexp TESTCASE
 
 
-== Object#should
+Object#should
+=============
 
 You can use Object#should outside of contexts, where the result of
 assertion will be returned as a boolean.  This is nice for
@@ -319,7 +330,8 @@ demonstrations, quick checks and doctest tests.
     => false
 
 
-== Converting specs
+Converting specs
+================
 
 spec-converter is a simple tool to convert test-unit or dust style
 tests to test/spec specs.
@@ -327,7 +339,8 @@ tests to test/spec specs.
 It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
 
 
-== Thanks to
+Thanks to
+=========
 
 * Michael Fellinger, for fixing Bacon for 1.9 and various improvements.
 * Gabriele Renzi, for implementing Context#should.
@@ -336,7 +349,8 @@ It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
 * everyone contributing bug fixes.
 
 
-== History
+History
+=======
 
 * January 7, 2008: First public release 0.9.
 
@@ -356,10 +370,17 @@ It can be found at http://opensource.thinkrelevance.com/wiki/spec_converter.
 
 * January 10th, 2011: MacBacon fork release 1.1
   * Make it work in a NSRunloop environment
-  * Add `wait'
+  * Add `wait`
   * Remove extras, for now
 
-== Contact
+* March 12th, 2011: MacBacon fork release 1.3
+  * Add NIB helper
+  * exit with non-zero status when there were failures/errors
+  * Add `wait` without explicit time
+  * Add `wait_for_change`
+
+Contact
+=======
 
 Please mail bugs, suggestions and patches for Bacon to
 <mailto:chneukirchen@gmail.com>
@@ -375,18 +396,23 @@ And repository location:
 https://github.com/alloy/MacBacon
 git://github.com/alloy/MacBacon.git
 
-== Copying
+Copying
+=======
 
-Copyright (C) 2007, 2008 Christian Neukirchen <purl.org/net/chneukirchen>
+Copyright (C) 2007 - 2011 Christian Neukirchen <purl.org/net/chneukirchen>
+Copyright (C) 2011 Eloy Durán <eloy.de.enige@gmail.com>
 
 Bacon is freely distributable under the terms of an MIT-style license.
 See COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 
-== Links
+Links
+=====
 
 Behavior-Driven Development:: <http://behaviour-driven.org/>
 RSpec:: <http://rspec.rubyforge.org/>
 test/spec:: <http://test-spec.rubyforge.org/>
 
 Christian Neukirchen:: <http://chneukirchen.org/>
+Eloy Durán:: <http://soup.superalloy.nl/>
+
