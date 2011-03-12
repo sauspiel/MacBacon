@@ -228,7 +228,7 @@ module Bacon
 
     def postponed_block_timeout_exceeded
       cancel_scheduled_requests!
-      execute_block { raise "The postponed block timeout has been exceeded." }
+      execute_block { raise Error.new(:failed, "timeout exceeded: #{@context.name} - #{@description}") }
       @postponed_blocks_count = 0
       finish_spec
     end
@@ -284,8 +284,8 @@ module Bacon
         @exception_occurred = true
 
         ErrorLog << "#{e.class}: #{e.message}\n"
-        e.backtrace.find_all { |line| line !~ /bin\/bacon|\/bacon\.rb:\d+/ }.
-          each_with_index { |line, i|
+        lines = $DEBUG ? e.backtrace : e.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
+        lines.each_with_index { |line, i|
           ErrorLog << "\t#{line}#{i==0 ? ": #{@context.name} - #{@description}" : ""}\n"
         }
         ErrorLog << "\n"
