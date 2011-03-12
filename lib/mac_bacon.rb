@@ -11,7 +11,7 @@ framework "Cocoa"
 require "mac_bacon/helpers"
 
 module Bacon
-  VERSION = "1.2.1"
+  VERSION = "1.3"
 
   Counter = Hash.new(0)
   ErrorLog = ""

@@ -27,7 +27,7 @@ def git_tree_version
     #$: << "lib"
     #require 'mac_bacon'
     #@tree_version = Bacon::VERSION
-    @tree_version = "1.2.1"
+    @tree_version = "1.3"
   end
   @tree_version
 end
@@ -116,7 +116,7 @@ https://github.com/alloy/MacBacon
     s.executables     << 'macbacon'
     s.require_path    = 'lib'
     s.has_rdoc        = true
-    s.extra_rdoc_files = ['README', 'RDOX']
+    s.extra_rdoc_files = ['README.md', 'RDOX']
     s.test_files      = []
 
     s.author          = 'Eloy Durán'
@@ -137,11 +137,11 @@ end
 desc "Generate RDoc documentation"
 Rake::RDocTask.new(:rdoc) do |rdoc|
   rdoc.options << '--line-numbers' << '--inline-source' <<
-    '--main' << 'README' <<
+    '--main' << 'README.md' <<
     '--title' << 'Bacon Documentation' <<
     '--charset' << 'utf-8'
   rdoc.rdoc_dir = "doc"
-  rdoc.rdoc_files.include 'README'
+  rdoc.rdoc_files.include 'README.md'
   rdoc.rdoc_files.include 'COPYING'
   rdoc.rdoc_files.include 'RDOX'
   rdoc.rdoc_files.include('lib/mac_bacon.rb')
