@@ -158,10 +158,10 @@ module Bacon
         @context.instance_eval(&@block)
       end
 
-      finalize if @postponed_blocks_count == 0
+      finish_spec if @postponed_blocks_count == 0
     end
 
-    def postpone_block(seconds, &block)
+    def schedule_block(seconds, &block)
       # If an exception occurred, we definitely don't need to schedule any more blocks
       unless @exception_occurred
         @postponed_blocks_count += 1
@@ -169,15 +169,39 @@ module Bacon
       end
     end
 
+    def postpone_block(timeout = 1, &block)
+      # If an exception occurred, we definitely don't need to schedule any more blocks
+      unless @exception_occurred
+        if @postponed_block
+          raise "Only one indefinite `wait' block at the same time is allowed!"
+        else
+          @postponed_blocks_count += 1
+          @postponed_block = block
+          performSelector("postponed_block_timeout_exceeded", withObject:nil, afterDelay:timeout)
+        end
+      end
+    end
+
+    def postponed_block_timeout_exceeded
+      NSRunLoop.currentRunLoop.cancelPerformSelectorsWithTarget(self)
+      execute_block { raise "The postponed block timeout has been exceeded." }
+      finish_spec
+    end
+
+    def resume
+      block, @postponed_block = @postponed_block, nil
+      run_postponed_block(block)
+    end
+
     def run_postponed_block(block)
       # If an exception occurred, we definitely don't need execute any more blocks
       execute_block(&block) unless @exception_occurred
       @postponed_blocks_count -= 1
-      finalize if @postponed_blocks_count == 0
+      finish_spec if @postponed_blocks_count == 0
     end
 
-    def finalize
-      if Counter[:requirements] == @number_of_requirements_before
+    def finish_spec
+      if !@exception_occurred && Counter[:requirements] == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
         # TODO ugh, exceptions for control flow, need to clean this up
         execute_block { raise Error.new(:missing, "empty specification: #{@context.name} #{@description}") }
@@ -315,8 +339,20 @@ module Bacon
       context
     end
 
-    def wait(seconds, &block)
+    def wait(seconds = nil, &block)
+      if seconds
+        current_specification.schedule_block(seconds, &block)
+      else
+        current_specification.postpone_block(&block)
+      end
+    end
+
+    def wait_max(seconds, &block)
       current_specification.postpone_block(seconds, &block)
+    end
+
+    def resume
+      current_specification.resume
     end
 
     def raise?(*args, &block); block.raise?(*args); end

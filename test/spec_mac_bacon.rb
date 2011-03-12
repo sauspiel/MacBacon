@@ -16,6 +16,64 @@ describe "NSRunloop aware Bacon" do
       end
     end
   end
+
+  describe "concerning `wait' without a fixed time" do
+    def delegateCallbackMethod
+      @delegateCallbackCalled = true
+      resume
+    end
+
+    it "allows the user to postpone execution of a block until Context#resume is called, from for instance a delegate callback" do
+      performSelector('delegateCallbackMethod', withObject:nil, afterDelay:0.2)
+      @delegateCallbackCalled.should == nil
+      wait do
+        @delegateCallbackCalled.should == true
+      end
+    end
+
+    def delegateCallbackTookTooLongMethod
+      raise "Oh noes, I must never be called!"
+    end
+
+    def failures_before
+      @failures_before
+    end
+
+    def expect_spec_to_fail!
+      @failures_before = Bacon::Counter[:failures]
+      Bacon::Specification.class_eval do
+        alias_method :_real_finish_spec, :finish_spec
+        def finish_spec
+          @exception_occurred.should == true
+          @exception_occurred = nil
+          Bacon::Counter[:errors].should == @context.failures_before + 1
+          Bacon::Counter[:errors] = @context.failures_before
+          self.class.class_eval { alias_method :finish_spec, :_real_finish_spec }
+          _real_finish_spec
+        end
+      end
+    end
+
+    # This spec adds a failure to the ErrorLog!
+    it "has a default timeout of 1 second after which the spec will fail and further scheduled calls to the Context are cancelled" do
+      expect_spec_to_fail!
+      performSelector('delegateCallbackTookTooLongMethod', withObject:nil, afterDelay:1.2)
+      wait do
+        # we must never arrive here, because the default timeout of 1 second will have passed
+        raise "Oh noes, we shouldn't have arrived in this postponed block!"
+      end
+    end
+
+    # This spec adds a failure to the ErrorLog!
+    it "takes an explicit timeout" do
+      expect_spec_to_fail!
+      performSelector('delegateCallbackTookTooLongMethod', withObject:nil, afterDelay:0.8)
+      wait_max 0.5 do
+        # we must never arrive here, because the default timeout of 1 second will have passed
+        raise "Oh noes, we shouldn't have arrived in this postponed block!"
+      end
+    end
+  end
 end
 
 class WindowController < NSWindowController
