@@ -26,7 +26,7 @@ module MetaTests
 end
 
 describe "Bacon" do
-  extend MetaTests
+  include MetaTests
   
   it "should have should.satisfy" do
     lambda { should.satisfy { 1 == 1 } }.should succeed
@@ -362,8 +362,8 @@ end
 
 describe 'describe arguments' do
 
-  def check(ctx,name)
-    ctx.should.be.an.instance_of Bacon::Context
+  def check(ctx, name)
+    ctx.ancestors.should.include Bacon::Context
     ctx.instance_variable_get('@name').should == name
   end
 

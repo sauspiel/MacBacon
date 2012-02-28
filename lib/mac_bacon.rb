@@ -228,7 +228,7 @@ module Bacon
 
     def postponed_block_timeout_exceeded
       cancel_scheduled_requests!
-      execute_block { raise Error.new(:failed, "timeout exceeded: #{@context.name} - #{@description}") }
+      execute_block { raise Error.new(:failed, "timeout exceeded: #{@context.class.name} - #{@description}") }
       @postponed_blocks_count = 0
       finish_spec
     end
@@ -259,7 +259,7 @@ module Bacon
     def finish_spec
       if !@exception_occurred && Counter[:requirements] == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
-        execute_block { raise Error.new(:missing, "empty specification: #{@context.name} #{@description}") }
+        execute_block { raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}") }
       end
       run_after_filters
       exit_spec unless postponed?
@@ -274,7 +274,7 @@ module Bacon
       cancel_scheduled_requests!
       Counter[:depth] -= 1
       Bacon.handle_requirement_end(@error)
-      @context.specification_did_finish(self)
+      @context.class.specification_did_finish(self)
     end
 
     def execute_block
@@ -286,7 +286,7 @@ module Bacon
         ErrorLog << "#{e.class}: #{e.message}\n"
         lines = $DEBUG ? e.backtrace : e.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
         lines.each_with_index { |line, i|
-          ErrorLog << "\t#{line}#{i==0 ? ": #{@context.name} - #{@description}" : ""}\n"
+          ErrorLog << "\t#{line}#{i==0 ? ": #{@context.class.name} - #{@description}" : ""}\n"
         }
         ErrorLog << "\n"
 
@@ -335,57 +335,10 @@ module Bacon
   end
 
   class Context
-    attr_reader :name, :block
-    
-    def initialize(name, before = nil, after = nil, &block)
-      @name = name
-      @before, @after = (before ? before.dup : []), (after ? after.dup : [])
-      @block = block
-      @specifications = []
-      @current_specification_index = 0
+    def raise?(*args, &block); block.raise?(*args); end
+    def throw?(*args, &block); block.throw?(*args); end
+    def change?(*args, &block); block.change?(*args); end
 
-      Bacon.add_context(self)
-
-      instance_eval(&block)
-    end
-
-    def run
-      # TODO
-      #return  unless name =~ RestrictContext
-      if spec = current_specification
-        spec.performSelector("run", withObject:nil, afterDelay:0)
-      else
-        Bacon.context_did_finish(self)
-      end
-    end
-
-    def current_specification
-      @specifications[@current_specification_index]
-    end
-
-    def specification_did_finish(spec)
-      if (@current_specification_index + 1) < @specifications.size
-        @current_specification_index += 1
-        run
-      else
-        Bacon.context_did_finish(self)
-      end
-    end
-
-    def before(&block); @before << block; end
-    def after(&block);  @after << block; end
-
-    def behaves_like(*names)
-      names.each { |name| instance_eval(&Shared[name]) }
-    end
-
-    def it(description, &block)
-      return  unless description =~ RestrictName
-      block ||= lambda { should.flunk "not implemented" }
-      Counter[:specifications] += 1
-      @specifications << Specification.new(self, description, block, @before, @after)
-    end
-    
     def should(*args, &block)
       if Counter[:depth]==0
         it('should '+args.first,&block)
@@ -394,37 +347,84 @@ module Bacon
       end
     end
 
-    def describe(*args, &block)
-      context = Bacon::Context.new(args.join(' '), @before, @after, &block)
-      (parent_context = self).methods(false).each {|e|
-        class<<context; self end.send(:define_method, e) {|*args| parent_context.send(e, *args)}
-      }
-      context
-    end
-
     def wait(seconds = nil, &block)
       if seconds
-        current_specification.schedule_block(seconds, &block)
+        self.class.current_specification.schedule_block(seconds, &block)
       else
-        current_specification.postpone_block(&block)
+        self.class.current_specification.postpone_block(&block)
       end
     end
 
     def wait_max(timeout, &block)
-      current_specification.postpone_block(timeout, &block)
+      self.class.current_specification.postpone_block(timeout, &block)
     end
 
     def wait_for_change(object_to_observe, key_path, timeout = 1, &block)
-      current_specification.postpone_block_until_change(object_to_observe, key_path, timeout, &block)
+      self.class.current_specification.postpone_block_until_change(object_to_observe, key_path, timeout, &block)
     end
 
     def resume
-      current_specification.resume
+      self.class.current_specification.resume
     end
 
-    def raise?(*args, &block); block.raise?(*args); end
-    def throw?(*args, &block); block.throw?(*args); end
-    def change?(*args, &block); block.change?(*args); end
+    class << self
+      attr_reader :name, :block
+
+      def init_context(name, before = nil, after = nil, &block)
+        context = Class.new(self) do
+          @name = name
+          @before, @after = (before ? before.dup : []), (after ? after.dup : [])
+          @block = block
+          @specifications = []
+          @current_specification_index = 0
+        end
+        Bacon.add_context(context)
+        context.class_eval(&block)
+        context
+      end
+
+      def run
+        # TODO
+        #return  unless name =~ RestrictContext
+        if spec = current_specification
+          spec.performSelector("run", withObject:nil, afterDelay:0)
+        else
+          Bacon.context_did_finish(self)
+        end
+      end
+
+      def current_specification
+        @specifications[@current_specification_index]
+      end
+
+      def specification_did_finish(spec)
+        if (@current_specification_index + 1) < @specifications.size
+          @current_specification_index += 1
+          run
+        else
+          Bacon.context_did_finish(self)
+        end
+      end
+
+      def before(&block); @before << block; end
+      def after(&block);  @after << block; end
+
+      def behaves_like(*names)
+        names.each { |name| class_eval(&Shared[name]) }
+      end
+
+      def it(description, &block)
+        return  unless description =~ RestrictName
+        block ||= lambda { should.flunk "not implemented" }
+        Counter[:specifications] += 1
+        @specifications << Specification.new(new, description, block, @before, @after)
+      end
+
+      def describe(*args, &block)
+        args.unshift(name)
+        init_context(args.join(' '), @before, @after, &block)
+      end
+    end
   end
 end
 
@@ -475,13 +475,13 @@ end
 
 
 class Object
-  def should(*args, &block)    Should.new(self).be(*args, &block)         end
+  def should(*args, &block)    Should.new(self).be(*args, &block)                  end
 end
 
 module Kernel
   private
-  def describe(*args, &block) Bacon::Context.new(args.join(' '), &block)  end
-  def shared(name, &block)    Bacon::Shared[name] = block                 end
+  def describe(*args, &block) Bacon::Context.init_context(args.join(' '), &block)  end
+  def shared(name, &block)    Bacon::Shared[name] = block                          end
 end
 
 class Should
