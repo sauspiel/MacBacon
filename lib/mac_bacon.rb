@@ -28,14 +28,14 @@ module Bacon
 
   module SpecDoxOutput
     def handle_context_begin(context)
+      # Nested contexts do _not_ have an extra line between them and their parent.
+      puts if context.context_depth == 1
+
       spaces = "  " * (context.context_depth - 1)
       puts spaces + context.name
     end
 
     def handle_context_end(context)
-      # TODO we should only add an extra line if the next context is on level one
-      # This means that nested contexts do _not_ have an extra line between them and their parent.
-      puts #if context.context_depth == 1
     end
 
     def handle_specification_begin(specification)
