@@ -14,7 +14,6 @@ module Bacon
   VERSION = "1.3"
 
   Counter = Hash.new(0)
-  ErrorLog = ""
   Shared = Hash.new { |_, name|
     raise NameError, "no such context: #{name.inspect}"
   }
@@ -42,9 +41,18 @@ module Bacon
     end
 
     def handle_summary
-      print ErrorLog  if Backtraces
-      puts "%d specifications (%d requirements), %d failures, %d errors" %
-        Counter.values_at(:specifications, :requirements, :failed, :errors)
+      if Backtraces
+        Specification.specifications.each do |spec|
+          puts spec.error_log unless spec.passed?
+        end
+        puts
+      end
+
+      specs  = Specification.specifications.size
+      reqs   = Should.requirements.size
+      failed = Specification.specifications.select(&:failure?).size
+      errors = Specification.specifications.select(&:error?).size
+      puts "%d specifications (%d requirements), %d failures, %d errors" % [specs, reqs, failed, errors]
     end
 
     def spaces
@@ -52,71 +60,71 @@ module Bacon
     end
   end
 
-  module TestUnitOutput
-    def handle_specification_begin(name); end
-    def handle_specification_end        ; end
+  #module TestUnitOutput
+    #def handle_specification_begin(name); end
+    #def handle_specification_end        ; end
 
-    def handle_requirement_begin(description) end
-    def handle_requirement_end(error)
-      if error.empty?
-        print "."
-      else
-        print error[0..0]
-      end
-    end
+    #def handle_requirement_begin(description) end
+    #def handle_requirement_end(error)
+      #if error.empty?
+        #print "."
+      #else
+        #print error[0..0]
+      #end
+    #end
 
-    def handle_summary
-      puts "", "Finished in #{Time.now - @timer} seconds."
-      puts ErrorLog  if Backtraces
-      puts "%d tests, %d assertions, %d failures, %d errors" %
-        Counter.values_at(:specifications, :requirements, :failed, :errors)
-    end
-  end
+    #def handle_summary
+      #puts "", "Finished in #{Time.now - @timer} seconds."
+      #puts ErrorLog  if Backtraces
+      #puts "%d tests, %d assertions, %d failures, %d errors" %
+        #Counter.values_at(:specifications, :requirements, :failed, :errors)
+    #end
+  #end
 
-  module TapOutput
-    def handle_specification_begin(name); end
-    def handle_specification_end        ; end
+  #module TapOutput
+    #def handle_specification_begin(name); end
+    #def handle_specification_end        ; end
 
-    def handle_requirement_begin(description)
-      ErrorLog.replace ""
-    end
+    #def handle_requirement_begin(description)
+      #ErrorLog.replace ""
+    #end
 
-    def handle_requirement_end(error)
-      if error.empty?
-        puts "ok %-3d - %s" % [Counter[:specifications], description]
-      else
-        puts "not ok %d - %s: %s" %
-          [Counter[:specifications], description, error]
-        puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
-      end
-    end
+    #def handle_requirement_end(error)
+      #if error.empty?
+        #puts "ok %-3d - %s" % [Counter[:specifications], description]
+      #else
+        #puts "not ok %d - %s: %s" %
+          #[Counter[:specifications], description, error]
+        #puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
+      #end
+    #end
 
-    def handle_summary
-      puts "1..#{Counter[:specifications]}"
-      puts "# %d tests, %d assertions, %d failures, %d errors" %
-        Counter.values_at(:specifications, :requirements, :failed, :errors)
-    end
-  end
+    #def handle_summary
+      #puts "1..#{Counter[:specifications]}"
+      #puts "# %d tests, %d assertions, %d failures, %d errors" %
+        #Counter.values_at(:specifications, :requirements, :failed, :errors)
+    #end
+  #end
 
-  module KnockOutput
-    def handle_specification_begin(name); end
-    def handle_specification_end        ; end
+  #module KnockOutput
+    #def handle_specification_begin(name); end
+    #def handle_specification_end        ; end
 
-    def handle_requirement_begin(description)
-      ErrorLog.replace ""
-    end
+    #def handle_requirement_begin(description)
+      #ErrorLog.replace ""
+    #end
 
-    def handle_requirement_end(error)
-      if error.empty?
-        puts "ok - %s" % [description]
-      else
-        puts "not ok - %s: %s" % [description, error]
-        puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
-      end
-    end
+    #def handle_requirement_end(error)
+      #if error.empty?
+        #puts "ok - %s" % [description]
+      #else
+        #puts "not ok - %s: %s" % [description, error]
+        #puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
+      #end
+    #end
 
-    def handle_summary;  end
-  end
+    #def handle_summary;  end
+  #end
 
   extend SpecDoxOutput          # default
 
@@ -127,9 +135,23 @@ module Bacon
       @count_as = count_as
       super message
     end
+
+    def count_as_failure?
+      @count_as == :failure
+    end
+
+    def count_as_error?
+      @count_as == :error
+    end
   end
 
   class Specification
+    class << self
+      def specifications
+        @specifications ||= []
+      end
+    end
+
     attr_reader :description
 
     def initialize(context, description, block, before_filters, after_filters)
@@ -139,8 +161,8 @@ module Bacon
       @postponed_blocks_count = 0
       @ran_spec_block = false
       @ran_after_filters = false
-      @exception_occurred = false
-      @error = ""
+
+      self.class.specifications << self
     end
 
     def postponed?
@@ -154,9 +176,7 @@ module Bacon
     def run_spec_block
       @ran_spec_block = true
       # If an exception occurred, we definitely don't need to perform the actual spec anymore
-      unless @exception_occurred
-        execute_block { @context.instance_eval(&@block) }
-      end
+      execute_block { @context.instance_eval(&@block) } unless @exception
       finish_spec unless postponed?
     end
 
@@ -166,8 +186,10 @@ module Bacon
     end
 
     def run
+      # TODO this should probably be done differently in a parallel setup
       Bacon.handle_requirement_begin(@description)
       Counter[:depth] += 1
+
       run_before_filters
       @number_of_requirements_before = Counter[:requirements]
       run_spec_block unless postponed?
@@ -175,7 +197,7 @@ module Bacon
 
     def schedule_block(seconds, &block)
       # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception_occurred
+      unless @exception
         @postponed_blocks_count += 1
         performSelector("run_postponed_block:", withObject:block, afterDelay:seconds)
       end
@@ -183,7 +205,7 @@ module Bacon
 
     def postpone_block(timeout = 1, &block)
       # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception_occurred
+      unless @exception
         if @postponed_block
           raise "Only one indefinite `wait' block at the same time is allowed!"
         else
@@ -196,7 +218,7 @@ module Bacon
 
     def postpone_block_until_change(object_to_observe, key_path, timeout = 1, &block)
       # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception_occurred
+      unless @exception
         if @postponed_block
           raise "Only one indefinite `wait' block at the same time is allowed!"
         else
@@ -243,7 +265,7 @@ module Bacon
 
     def run_postponed_block(block)
       # If an exception occurred, we definitely don't need execute any more blocks
-      execute_block(&block) unless @exception_occurred
+      execute_block(&block) unless @exception
       @postponed_blocks_count -= 1
       unless postponed?
         if @ran_after_filters
@@ -257,7 +279,7 @@ module Bacon
     end
 
     def finish_spec
-      if !@exception_occurred && Counter[:requirements] == @number_of_requirements_before
+      if passed? && Counter[:requirements] == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
         execute_block { raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}") }
       end
@@ -273,7 +295,7 @@ module Bacon
     def exit_spec
       cancel_scheduled_requests!
       Counter[:depth] -= 1
-      Bacon.handle_requirement_end(@error)
+      Bacon.handle_requirement_end(error_message || '')
       @context.class.specification_did_finish(self)
     end
 
@@ -281,22 +303,43 @@ module Bacon
       begin
         yield
       rescue Object => e
-        @exception_occurred = true
+        @exception = e
+      end
+    end
 
-        ErrorLog << "#{e.class}: #{e.message}\n"
-        lines = $DEBUG ? e.backtrace : e.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
+    def passed?
+      @exception.nil?
+    end
+
+    def bacon_error?
+      @exception.kind_of?(Error)
+    end
+
+    def failure?
+      @exception.count_as_failure? if bacon_error?
+    end
+
+    def error?
+      !@exception.nil? && !failure?
+    end
+
+    def error_message
+      if bacon_error?
+        @exception.count_as.to_s.upcase
+      elsif @exception
+        "ERROR: #{@exception.class}"
+      end
+    end
+
+    def error_log
+      if @exception
+        log = ''
+        log << "#{@exception.class}: #{@exception.message}\n"
+        lines = $DEBUG ? @exception.backtrace : @exception.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
         lines.each_with_index { |line, i|
-          ErrorLog << "\t#{line}#{i==0 ? ": #{@context.class.name} - #{@description}" : ""}\n"
+          log << "\t#{line}#{i==0 ? ": #{@context.class.name} - #{@description}" : ""}\n"
         }
-        ErrorLog << "\n"
-
-        @error = if e.kind_of? Error
-          Counter[e.count_as] += 1
-          e.count_as.to_s.upcase
-        else
-          Counter[:errors] += 1
-          "ERROR: #{e.class}"
-        end
+        log
       end
     end
   end
@@ -489,9 +532,16 @@ class Should
   # kind_of?, nil?, respond_to?, tainted?
   instance_methods.each { |name| undef_method name  if name =~ /\?|^\W+$/ }
 
+  class << self
+    def requirements
+      @requirements ||= []
+    end
+  end
+
   def initialize(object)
     @object = object
     @negated = false
+    self.class.requirements << self
   end
 
   def not(*args, &block)
