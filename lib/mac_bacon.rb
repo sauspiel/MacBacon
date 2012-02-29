@@ -177,14 +177,11 @@ module Bacon
     end
 
     def run_spec_block
-      @ran_spec_block = true
       # If an exception occurred, we definitely don't need to perform the actual spec anymore
       execute_block { @context.instance_eval(&@block) } unless @exception
-      finish_spec unless postponed?
     end
 
     def run_after_filters
-      @ran_after_filters = true
       execute_block { @after_filters.each { |f| @context.instance_eval(&f) } }
     end
 
@@ -194,90 +191,8 @@ module Bacon
 
       run_before_filters
       @number_of_requirements_before = Should.requirements.size
-      run_spec_block unless postponed?
-    end
-
-    def schedule_block(seconds, &block)
-      # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception
-        @postponed_blocks_count += 1
-        performSelector("run_postponed_block:", withObject:block, afterDelay:seconds)
-      end
-    end
-
-    def postpone_block(timeout = 1, &block)
-      # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception
-        if @postponed_block
-          raise "Only one indefinite `wait' block at the same time is allowed!"
-        else
-          @postponed_blocks_count += 1
-          @postponed_block = block
-          performSelector("postponed_block_timeout_exceeded", withObject:nil, afterDelay:timeout)
-        end
-      end
-    end
-
-    def postpone_block_until_change(object_to_observe, key_path, timeout = 1, &block)
-      # If an exception occurred, we definitely don't need to schedule any more blocks
-      unless @exception
-        if @postponed_block
-          raise "Only one indefinite `wait' block at the same time is allowed!"
-        else
-          @postponed_blocks_count += 1
-          @postponed_block = block
-          @observed_object_and_key_path = [object_to_observe, key_path]
-          object_to_observe.addObserver(self, forKeyPath:key_path, options:0, context:nil)
-          performSelector("postponed_change_block_timeout_exceeded", withObject:nil, afterDelay:timeout)
-        end
-      end
-    end
-
-    def observeValueForKeyPath(key_path, ofObject:object, change:_, context:__)
-      resume
-    end
-
-    def postponed_change_block_timeout_exceeded
-      remove_observer!
-      postponed_block_timeout_exceeded
-    end
-
-    def remove_observer!
-      if @observed_object_and_key_path
-        object, key_path = @observed_object_and_key_path
-        object.removeObserver(self, forKeyPath:key_path)
-        @observed_object_and_key_path = nil
-      end
-    end
-
-    def postponed_block_timeout_exceeded
-      cancel_scheduled_requests!
-      execute_block { raise Error.new(:failed, "timeout exceeded: #{@context.class.name} - #{@description}") }
-      @postponed_blocks_count = 0
+      run_spec_block
       finish_spec
-    end
-
-    def resume
-      NSObject.cancelPreviousPerformRequestsWithTarget(self, selector:'postponed_block_timeout_exceeded', object:nil)
-      NSObject.cancelPreviousPerformRequestsWithTarget(self, selector:'postponed_change_block_timeout_exceeded', object:nil)
-      remove_observer!
-      block, @postponed_block = @postponed_block, nil
-      run_postponed_block(block)
-    end
-
-    def run_postponed_block(block)
-      # If an exception occurred, we definitely don't need execute any more blocks
-      execute_block(&block) unless @exception
-      @postponed_blocks_count -= 1
-      unless postponed?
-        if @ran_after_filters
-          exit_spec
-        elsif @ran_spec_block
-          finish_spec
-        else
-          run_spec_block
-        end
-      end
     end
 
     def finish_spec
@@ -286,12 +201,7 @@ module Bacon
         execute_block { raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}") }
       end
       run_after_filters
-      exit_spec unless postponed?
-    end
-
-    def cancel_scheduled_requests!
-      NSObject.cancelPreviousPerformRequestsWithTarget(@context)
-      NSObject.cancelPreviousPerformRequestsWithTarget(self)
+      exit_spec
     end
 
     def exit_spec
@@ -387,26 +297,6 @@ module Bacon
       else
         super(*args,&block)
       end
-    end
-
-    def wait(seconds = nil, &block)
-      if seconds
-        self.class.current_specification.schedule_block(seconds, &block)
-      else
-        self.class.current_specification.postpone_block(&block)
-      end
-    end
-
-    def wait_max(timeout, &block)
-      self.class.current_specification.postpone_block(timeout, &block)
-    end
-
-    def wait_for_change(object_to_observe, key_path, timeout = 1, &block)
-      self.class.current_specification.postpone_block_until_change(object_to_observe, key_path, timeout, &block)
-    end
-
-    def resume
-      self.class.current_specification.resume
     end
 
     class << self
