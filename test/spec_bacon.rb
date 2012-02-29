@@ -257,24 +257,20 @@ end
 
 describe "before/after" do
   before do
-    p 'before 1'
     @a = 1
     @b = 2
   end
 
   before do
-    p 'before 2'
     @a = 2
   end
 
   after do
-    p 'after 1'
     @a.should.equal 2
     @a = 3
   end
 
   after do
-    p 'after 1'
     @a.should.equal 3
   end
   
@@ -364,31 +360,31 @@ describe "Methods" do
   end
 end
 
-describe 'describe arguments' do
+#describe 'describe arguments' do
 
-  def check(ctx, name)
-    ctx.ancestors.should.include Bacon::Context
-    ctx.instance_variable_get('@name').should == name
-  end
+  #def check(ctx, name)
+    #ctx.ancestors.should.include Bacon::Context
+    #ctx.instance_variable_get('@name').should == name
+  #end
 
-  it 'should work with string' do
-    check(describe('string') {},'string')
-  end
+  #it 'should work with string' do
+    #check(describe('string') {},'string')
+  #end
 
-  it 'should work with symbols' do
-    check(describe(:behaviour) {},'behaviour')
-  end
+  #it 'should work with symbols' do
+    #check(describe(:behaviour) {},'behaviour')
+  #end
    
-  it 'should work with modules' do
-    check(describe(Bacon) {},'Bacon')
-  end
+  #it 'should work with modules' do
+    #check(describe(Bacon) {},'Bacon')
+  #end
 
-  it 'should work with namespaced modules' do
-    check(describe(Bacon::Context) {},'Bacon::Context')
-  end
+  #it 'should work with namespaced modules' do
+    #check(describe(Bacon::Context) {},'Bacon::Context')
+  #end
 
-  it 'should work with multiple arguments' do
-    check(describe(Bacon::Context, :empty) {},'Bacon::Context empty')
-  end
+  #it 'should work with multiple arguments' do
+    #check(describe(Bacon::Context, :empty) {},'Bacon::Context empty')
+  #end
 
-end
+#end

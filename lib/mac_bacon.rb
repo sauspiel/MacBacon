@@ -60,7 +60,8 @@ module Bacon
 
     def handle_specification_begin(specification)
       spaces = "  " * (specification.context.class.context_depth - 1)
-      print "#{spaces}  - #{specification.description}"
+      #print "#{spaces}  - #{specification.description}"
+      puts "#{spaces}  - #{specification.description}"
     end
 
     def handle_specification_end(error)
@@ -82,72 +83,6 @@ module Bacon
       puts "%d specifications (%d requirements), %d failures, %d errors" % [specs, reqs, failed, errors]
     end
   end
-
-  #module TestUnitOutput
-    #def handle_context_begin(name); end
-    #def handle_context_end        ; end
-
-    #def handle_specification_begin(description) end
-    #def handle_specification_end(error)
-      #if error.empty?
-        #print "."
-      #else
-        #print error[0..0]
-      #end
-    #end
-
-    #def handle_summary
-      #puts "", "Finished in #{Time.now - @timer} seconds."
-      #puts ErrorLog  if Backtraces
-      #puts "%d tests, %d assertions, %d failures, %d errors" %
-        #Counter.values_at(:specifications, :requirements, :failed, :errors)
-    #end
-  #end
-
-  #module TapOutput
-    #def handle_context_begin(name); end
-    #def handle_context_end        ; end
-
-    #def handle_specification_begin(description)
-      #ErrorLog.replace ""
-    #end
-
-    #def handle_specification_end(error)
-      #if error.empty?
-        #puts "ok %-3d - %s" % [Counter[:specifications], description]
-      #else
-        #puts "not ok %d - %s: %s" %
-          #[Counter[:specifications], description, error]
-        #puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
-      #end
-    #end
-
-    #def handle_summary
-      #puts "1..#{Counter[:specifications]}"
-      #puts "# %d tests, %d assertions, %d failures, %d errors" %
-        #Counter.values_at(:specifications, :requirements, :failed, :errors)
-    #end
-  #end
-
-  #module KnockOutput
-    #def handle_context_begin(name); end
-    #def handle_context_end        ; end
-
-    #def handle_specification_begin(description)
-      #ErrorLog.replace ""
-    #end
-
-    #def handle_specification_end(error)
-      #if error.empty?
-        #puts "ok - %s" % [description]
-      #else
-        #puts "not ok - %s: %s" % [description, error]
-        #puts ErrorLog.strip.gsub(/^/, '# ')  if Backtraces
-      #end
-    #end
-
-    #def handle_summary;  end
-  #end
 
   extend SpecDoxOutput          # default
 
@@ -207,21 +142,22 @@ module Bacon
       @finished = true
       # TODO
       #Bacon::Dispatch.on_main_thread do
-        puts 'OHJA!'
         Bacon.handle_specification_end(error_message || '')
       #end
 
       #Bacon::Dispatch.on_main_thread do
-      ::Dispatch::Queue.main.async do
-        @context.class.specification_did_finish(self)
-      end
+      #::Dispatch::Queue.main.async do
+        #@context.class.specification_did_finish(self)
+      #end
 
     rescue Object => e
       @exception = e
     ensure
       begin
         @after_filters.each { |f| @context.instance_eval(&f) }
+        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:false)
       rescue Object => e
+        p e
         @exception = e
       end
     end
@@ -331,7 +267,6 @@ module Bacon
       def run
         queue = ::Dispatch::Queue.concurrent
         group = ::Dispatch::Group.new
-        p group
         puts "START OF CONTEXT #{name}"
         @specifications.each do |spec|
           queue.async(group) do
