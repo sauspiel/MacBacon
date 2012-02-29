@@ -21,10 +21,30 @@ module Bacon
     raise NameError, "no such context: #{name.inspect}"
   }
 
+  # TODO convert these to normal accessors
   RestrictName    = //  unless defined? RestrictName
   RestrictContext = //  unless defined? RestrictContext
-
   Backtraces = true  unless defined? Backtraces
+
+  module Dispatch
+    class << self
+      attr_accessor :concurrent
+      alias_method  :concurrent?, :concurrent
+
+      # Performs the block synchronously on the main thread.
+      def on_main_thread(&block)
+        if ::Dispatch::Queue.current.to_s == ::Dispatch::Queue.main.to_s
+          block.call
+        else
+          ::Dispatch::Queue.main.sync do
+            block.call
+          end
+        end
+      end
+    end
+  end
+  # TODO for now we only work on concurrency
+  Dispatch.concurrent = true
 
   module SpecDoxOutput
     def handle_context_begin(context)
@@ -164,58 +184,50 @@ module Bacon
       @postponed_blocks_count = 0
       @ran_spec_block = false
       @ran_after_filters = false
+      @finished = false
 
       self.class.specifications << self
     end
 
-    def postponed?
-      @postponed_blocks_count != 0
-    end
-
-    def run_before_filters
-      execute_block { @before_filters.each { |f| @context.instance_eval(&f) } }
-    end
-
-    def run_spec_block
-      # If an exception occurred, we definitely don't need to perform the actual spec anymore
-      execute_block { @context.instance_eval(&@block) } unless @exception
-    end
-
-    def run_after_filters
-      execute_block { @after_filters.each { |f| @context.instance_eval(&f) } }
-    end
-
     def run
-      # TODO this should probably be done differently in a parallel setup
       Bacon.handle_specification_begin(self)
 
-      run_before_filters
-      @number_of_requirements_before = Should.requirements.size
-      run_spec_block
-      finish_spec
-    end
+      @before_filters.each { |f| @context.instance_eval(&f) }
 
-    def finish_spec
+      @number_of_requirements_before = Should.requirements.size
+
+      @context.instance_eval(&@block)
+
+
       if passed? && Should.requirements.size == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
-        execute_block { raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}") }
+        raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}")
       end
-      run_after_filters
-      exit_spec
-    end
 
-    def exit_spec
-      cancel_scheduled_requests!
-      Bacon.handle_specification_end(error_message || '')
-      @context.class.specification_did_finish(self)
-    end
+      @finished = true
+      # TODO
+      #Bacon::Dispatch.on_main_thread do
+        puts 'OHJA!'
+        Bacon.handle_specification_end(error_message || '')
+      #end
 
-    def execute_block
+      #Bacon::Dispatch.on_main_thread do
+      ::Dispatch::Queue.main.async do
+        @context.class.specification_did_finish(self)
+      end
+
+    rescue Object => e
+      @exception = e
+    ensure
       begin
-        yield
+        @after_filters.each { |f| @context.instance_eval(&f) }
       rescue Object => e
         @exception = e
       end
+    end
+
+    def finished?
+      @finished
     end
 
     def passed?
@@ -317,13 +329,26 @@ module Bacon
       end
 
       def run
-        # TODO
-        #return  unless name =~ RestrictContext
-        if spec = current_specification
-          spec.performSelector("run", withObject:nil, afterDelay:0)
-        else
-          Bacon.context_did_finish(self)
+        queue = ::Dispatch::Queue.concurrent
+        group = ::Dispatch::Group.new
+        p group
+        puts "START OF CONTEXT #{name}"
+        @specifications.each do |spec|
+          queue.async(group) do
+            #begin
+              spec.run
+            #rescue Object => e
+              #p e, e.message, e.backtrace
+              #thread = ::Dispatch::Queue.current
+              #Bacon::Dispatch.on_main_thread do
+                #raise RuntimeError, "An error occurred on thread `#{thread}', this should really not happen! The error was: #{e.message}.", e.backtrace
+              #end
+            #end
+          end
         end
+        group.wait
+        puts "END OF CONTEXT #{name}"
+        Bacon.context_did_finish(self)
       end
 
       def current_specification
@@ -331,11 +356,15 @@ module Bacon
       end
 
       def specification_did_finish(spec)
-        if (@current_specification_index + 1) < @specifications.size
-          @current_specification_index += 1
-          run
+        unless Bacon::Dispatch.concurrent?
+          if (@current_specification_index + 1) < @specifications.size
+            @current_specification_index += 1
+            run
+          else
+            Bacon.context_did_finish(self)
+          end
         else
-          Bacon.context_did_finish(self)
+          # TODO notify the delegates?
         end
       end
 

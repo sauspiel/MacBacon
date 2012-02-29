@@ -61,6 +61,11 @@ opts = OptionParser.new("", 24, '  ') { |opts|
     Bacon.const_set :Backtraces, false
   }
 
+  opts.on("-c", "--concurrent", "runs multiple specs concurrently on multiple threads") {
+    require 'mac_bacon'
+    Bacon::Dispatch.concurrent = true
+  }
+
   opts.on("-a", "--automatic", "gather tests from ./test/, include ./lib/") {
     $LOAD_PATH.unshift "lib"  if File.directory? "lib"
     automatic = true

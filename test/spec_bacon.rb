@@ -257,20 +257,24 @@ end
 
 describe "before/after" do
   before do
+    p 'before 1'
     @a = 1
     @b = 2
   end
 
   before do
+    p 'before 2'
     @a = 2
   end
 
   after do
+    p 'after 1'
     @a.should.equal 2
     @a = 3
   end
 
   after do
+    p 'after 1'
     @a.should.equal 3
   end
   
