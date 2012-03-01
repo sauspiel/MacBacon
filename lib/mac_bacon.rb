@@ -74,7 +74,7 @@ module Bacon
         end
       end
 
-      puts "Took: #{(Time.now - @timer).to_i} seconds."
+      puts "Took: %.6f seconds." % (Time.now - @timer).to_f
       puts
       @timer = nil
 
