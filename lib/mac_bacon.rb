@@ -167,7 +167,7 @@ module Bacon
         @finished = true
         # TODO concurrent handling
         Bacon.handle_specification_end(error_message || '')
-        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:false)
+        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:true)
       end
     end
 
