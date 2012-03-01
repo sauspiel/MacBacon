@@ -326,39 +326,39 @@ shared "another shared context" do
   end
 end
 
-describe "shared/behaves_like" do
-  behaves_like "a shared context"
+#describe "shared/behaves_like" do
+  #behaves_like "a shared context"
 
-  ctx = self
-  it "raises NameError when the context is not found" do
-    lambda {
-      ctx.behaves_like "whoops"
-    }.should.raise NameError
-  end
+  #ctx = self
+  #it "raises NameError when the context is not found" do
+    #lambda {
+      #ctx.behaves_like "whoops"
+    #}.should.raise NameError
+  #end
 
-  behaves_like "a shared context"
+  #behaves_like "a shared context"
 
-  before {
-    @magic = 42
-  }
-  behaves_like "another shared context"
-end
+  #before {
+    #@magic = 42
+  #}
+  #behaves_like "another shared context"
+#end
 
-describe "Methods" do
-  def the_meaning_of_life
-    42
-  end
+#describe "Methods" do
+  #def the_meaning_of_life
+    #42
+  #end
 
-  it "should be accessible in a test" do
-    the_meaning_of_life.should == 42
-  end
+  #it "should be accessible in a test" do
+    #the_meaning_of_life.should == 42
+  #end
 
-  describe "when in a sibling context" do
-    it "should be accessible in a test" do
-      the_meaning_of_life.should == 42
-    end
-  end
-end
+  #describe "when in a sibling context" do
+    #it "should be accessible in a test" do
+      #the_meaning_of_life.should == 42
+    #end
+  #end
+#end
 
 #describe 'describe arguments' do
 

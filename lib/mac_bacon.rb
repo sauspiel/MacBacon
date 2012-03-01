@@ -74,6 +74,10 @@ module Bacon
         end
       end
 
+      puts "Took: #{(Time.now - @timer).to_i} seconds."
+      puts
+      @timer = nil
+
       specs  = Specification.specifications.size
       reqs   = Should.requirements.size
       failed = Specification.specifications.select(&:failure?).size
@@ -216,9 +220,33 @@ module Bacon
 
   def self.run
     @timer ||= Time.now
-    handle_context_begin(current_context)
-    current_context.performSelector("run", withObject:nil, afterDelay:0)
+    #handle_context_begin(current_context)
+    #current_context.performSelector("run", withObject:nil, afterDelay:0)
+    self.performSelector("run_all_specs_concurrent", withObject:nil, afterDelay:0)
     NSApplication.sharedApplication.run
+  end
+
+  def self.run_all_specs_concurrent
+    queue = Dispatch::Queue.concurrent
+    group = Dispatch::Group.new
+    contexts.each do |context|
+      context.specifications.each do |spec|
+        queue.async(group) do
+          begin
+            spec.run
+          rescue Object => e
+            puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+          end
+        end
+      end
+    end
+    group.wait
+    #Bacon.context_did_finish(self)
+    if delegate && delegate.respond_to?('baconDidFinish')
+      delegate.baconDidFinish
+    end
+    handle_summary
+    exit Specification.specifications.select { |s| !s.passed? }.size
   end
 
   def self.context_did_finish(context)
@@ -266,21 +294,21 @@ module Bacon
         context
       end
 
-      def run
-        queue = Dispatch::Queue.concurrent
-        group = Dispatch::Group.new
-        specifications.each do |spec|
-          queue.async(group) do
-            begin
-              spec.run
-            rescue Object => e
-              puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
-            end
-          end
-        end
-        group.wait
-        Bacon.context_did_finish(self)
-      end
+      #def run
+        #queue = Dispatch::Queue.concurrent
+        #group = Dispatch::Group.new
+        #specifications.each do |spec|
+          #queue.async(group) do
+            #begin
+              #spec.run
+            #rescue Object => e
+              #puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+            #end
+          #end
+        #end
+        #group.wait
+        #Bacon.context_did_finish(self)
+      #end
 
       def current_specification
         specifications[@current_specification_index]
