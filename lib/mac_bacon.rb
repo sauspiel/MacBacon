@@ -8,7 +8,9 @@
 # See COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 framework "Cocoa"
-require "mac_bacon/helpers"
+
+# TODO
+#require "mac_bacon/helpers"
 
 # We need to use Kernel::print when printing which specification is being run.
 # But we want to know this as soon as possible, hence we need to sync.
@@ -39,34 +41,37 @@ module Bacon
   # TODO for now we always run concurrent, because I ripped out the code needed for non-concurrent running
   self.concurrent = true
 
+  # TODO for now we'll just use dots, which works best in a concurrent env
   module SpecDoxOutput
     def handle_context_begin(context)
       # Nested contexts do _not_ have an extra line between them and their parent.
-      puts if context.context_depth == 1
+      #puts if context.context_depth == 1
 
-      spaces = "  " * (context.context_depth - 1)
-      puts spaces + context.name
+      #spaces = "  " * (context.context_depth - 1)
+      #puts spaces + context.name
     end
 
     def handle_context_end(context)
     end
 
     def handle_specification_begin(specification)
-      spaces = "  " * (specification.context.class.context_depth - 1)
-      #print "#{spaces}  - #{specification.description}"
-      puts "#{spaces}  - #{specification.description}"
+      #spaces = "  " * (specification.context.class.context_depth - 1)
+      ##print "#{spaces}  - #{specification.description}"
+      #puts "#{spaces}  - #{specification.description}"
     end
 
     def handle_specification_end(error)
-      puts error.empty? ? "" : " [#{error}]"
+      #puts error.empty? ? "" : " [#{error}]"
+      print '.'
     end
 
     def handle_summary
       if Backtraces
+        puts
         Specification.specifications.each do |spec|
           puts spec.error_log unless spec.passed?
+          puts
         end
-        puts
       end
 
       specs  = Specification.specifications.size
