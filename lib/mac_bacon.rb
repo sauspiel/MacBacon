@@ -27,6 +27,12 @@ module Bacon
   Backtraces = true  unless defined? Backtraces
 
   class << self
+    # This can be used by a `client' to receive status updates:
+    # * When a spec has finished running.
+    # * When a context has ran all of its spec.
+    # * When Bacon has finished a spec run.
+    attr_accessor :delegate
+
     attr_accessor :concurrent
     alias_method  :concurrent?, :concurrent
   end
@@ -183,8 +189,16 @@ module Bacon
     end
   end
 
+  def self.clear
+    @contexts = nil
+  end
+
+  def self.contexts
+    @contexts ||= []
+  end
+
   def self.add_context(context)
-    (@contexts ||= []) << context
+    contexts << context
   end
 
   def self.current_context_index
@@ -192,7 +206,7 @@ module Bacon
   end
 
   def self.current_context
-    @contexts[current_context_index]
+    contexts[current_context_index]
   end
 
   def self.run
@@ -204,11 +218,14 @@ module Bacon
 
   def self.context_did_finish(context)
     handle_context_end(context)
-    if (@current_context_index + 1) < @contexts.size
+    if (@current_context_index + 1) < contexts.size
       @current_context_index += 1
       run
     else
       # DONE
+      if delegate && delegate.respond_to?('baconDidFinish')
+        delegate.baconDidFinish
+      end
       handle_summary
       exit Specification.specifications.select { |s| !s.passed? }.size
     end
@@ -228,7 +245,7 @@ module Bacon
     end
 
     class << self
-      attr_reader :name, :block, :context_depth
+      attr_reader :name, :block, :context_depth, :specifications
 
       def init_context(name, context_depth, before = nil, after = nil, &block)
         context = Class.new(self) do
@@ -247,7 +264,7 @@ module Bacon
       def run
         queue = Dispatch::Queue.concurrent
         group = Dispatch::Group.new
-        @specifications.each do |spec|
+        specifications.each do |spec|
           queue.async(group) do
             begin
               spec.run
@@ -261,19 +278,21 @@ module Bacon
       end
 
       def current_specification
-        @specifications[@current_specification_index]
+        specifications[@current_specification_index]
       end
 
       def specification_did_finish(spec)
+        if (d = Bacon.delegate) && d.respond_to?('baconSpecificationDidFinish:')
+          d.baconSpecificationDidFinish(spec)
+        end
         unless Bacon.concurrent?
-          if (@current_specification_index + 1) < @specifications.size
+          # TODO update to no longer use the runloop to schedule specs
+          if (@current_specification_index + 1) < specifications.size
             @current_specification_index += 1
             run
           else
             Bacon.context_did_finish(self)
           end
-        else
-          # TODO notify the delegates?
         end
       end
 
