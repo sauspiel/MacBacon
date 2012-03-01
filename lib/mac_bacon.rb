@@ -41,6 +41,26 @@ module Bacon
   # TODO for now we always run concurrent, because I ripped out the code needed for non-concurrent running
   self.concurrent = true
 
+  module Counter
+    class << self
+      def specifications_ran
+        Specification.specifications.select(&:finished?).size
+      end
+
+      def requirements_ran
+        Should.requirements.size
+      end
+
+      def failures
+        Specification.specifications.select(&:failure?).size
+      end
+
+      def errors
+        Specification.specifications.select(&:error?).size
+      end
+    end
+  end
+
   # TODO for now we'll just use dots, which works best in a concurrent env
   module SpecDoxOutput
     def handle_context_begin(context)
@@ -78,11 +98,8 @@ module Bacon
       puts
       @timer = nil
 
-      specs  = Specification.specifications.size
-      reqs   = Should.requirements.size
-      failed = Specification.specifications.select(&:failure?).size
-      errors = Specification.specifications.select(&:error?).size
-      puts "%d specifications (%d requirements), %d failures, %d errors" % [specs, reqs, failed, errors]
+      puts "%d specifications (%d requirements), %d failures, %d errors" %
+        [Counter.specifications_ran, Counter.requirements_ran, Counter.failures, Counter.errors]
     end
   end
 
@@ -131,29 +148,26 @@ module Bacon
       Bacon.handle_specification_begin(self)
 
       @before_filters.each { |f| @context.instance_eval(&f) }
-
       @number_of_requirements_before = Should.requirements.size
-
       @context.instance_eval(&@block)
-
 
       if passed? && Should.requirements.size == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
         raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}")
       end
 
-      @finished = true
-      # TODO concurrent handling
-      Bacon.handle_specification_end(error_message || '')
-
     rescue Object => e
       @exception = e
     ensure
       begin
         @after_filters.each { |f| @context.instance_eval(&f) }
-        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:false)
       rescue Object => e
         @exception = e
+      ensure
+        @finished = true
+        # TODO concurrent handling
+        Bacon.handle_specification_end(error_message || '')
+        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:false)
       end
     end
 
@@ -200,6 +214,7 @@ module Bacon
 
   def self.clear
     @contexts = nil
+    @counter  = nil
   end
 
   def self.contexts
@@ -240,13 +255,16 @@ module Bacon
         end
       end
     end
-    group.wait
+    # TODO make this work again
     #Bacon.context_did_finish(self)
-    if delegate && delegate.respond_to?('baconDidFinish')
-      delegate.baconDidFinish
+
+    group.notify(queue) do
+      if delegate && delegate.respond_to?('baconDidFinish')
+        delegate.baconDidFinish
+      end
+      handle_summary
+      exit Specification.specifications.select { |s| !s.passed? }.size
     end
-    handle_summary
-    exit Specification.specifications.select { |s| !s.passed? }.size
   end
 
   def self.context_did_finish(context)
