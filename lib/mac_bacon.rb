@@ -26,25 +26,12 @@ module Bacon
   RestrictContext = //  unless defined? RestrictContext
   Backtraces = true  unless defined? Backtraces
 
-  module Dispatch
-    class << self
-      attr_accessor :concurrent
-      alias_method  :concurrent?, :concurrent
-
-      # Performs the block synchronously on the main thread.
-      def on_main_thread(&block)
-        if ::Dispatch::Queue.current.to_s == ::Dispatch::Queue.main.to_s
-          block.call
-        else
-          ::Dispatch::Queue.main.sync do
-            block.call
-          end
-        end
-      end
-    end
+  class << self
+    attr_accessor :concurrent
+    alias_method  :concurrent?, :concurrent
   end
-  # TODO for now we only work on concurrency
-  Dispatch.concurrent = true
+  # TODO for now we always run concurrent, because I ripped out the code needed for non-concurrent running
+  self.concurrent = true
 
   module SpecDoxOutput
     def handle_context_begin(context)
@@ -125,6 +112,7 @@ module Bacon
     end
 
     def run
+      # TODO concurrent handling
       Bacon.handle_specification_begin(self)
 
       @before_filters.each { |f| @context.instance_eval(&f) }
@@ -140,15 +128,8 @@ module Bacon
       end
 
       @finished = true
-      # TODO
-      #Bacon::Dispatch.on_main_thread do
-        Bacon.handle_specification_end(error_message || '')
-      #end
-
-      #Bacon::Dispatch.on_main_thread do
-      #::Dispatch::Queue.main.async do
-        #@context.class.specification_did_finish(self)
-      #end
+      # TODO concurrent handling
+      Bacon.handle_specification_end(error_message || '')
 
     rescue Object => e
       @exception = e
@@ -157,7 +138,6 @@ module Bacon
         @after_filters.each { |f| @context.instance_eval(&f) }
         @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:false)
       rescue Object => e
-        p e
         @exception = e
       end
     end
@@ -265,24 +245,18 @@ module Bacon
       end
 
       def run
-        queue = ::Dispatch::Queue.concurrent
-        group = ::Dispatch::Group.new
-        puts "START OF CONTEXT #{name}"
+        queue = Dispatch::Queue.concurrent
+        group = Dispatch::Group.new
         @specifications.each do |spec|
           queue.async(group) do
-            #begin
+            begin
               spec.run
-            #rescue Object => e
-              #p e, e.message, e.backtrace
-              #thread = ::Dispatch::Queue.current
-              #Bacon::Dispatch.on_main_thread do
-                #raise RuntimeError, "An error occurred on thread `#{thread}', this should really not happen! The error was: #{e.message}.", e.backtrace
-              #end
-            #end
+            rescue Object => e
+              puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+            end
           end
         end
         group.wait
-        puts "END OF CONTEXT #{name}"
         Bacon.context_did_finish(self)
       end
 
@@ -291,7 +265,7 @@ module Bacon
       end
 
       def specification_did_finish(spec)
-        unless Bacon::Dispatch.concurrent?
+        unless Bacon.concurrent?
           if (@current_specification_index + 1) < @specifications.size
             @current_specification_index += 1
             run
