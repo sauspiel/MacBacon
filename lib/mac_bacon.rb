@@ -44,19 +44,23 @@ module Bacon
   module Counter
     class << self
       def specifications_ran
-        Specification.specifications.select(&:finished?).size
+        Bacon.specifications.select(&:finished?).size
       end
 
       def requirements_ran
-        Should.requirements.size
+        Bacon.requirements.size
+      end
+
+      def not_passed
+        Bacon.specifications.select { |s| !s.passed? }.size
       end
 
       def failures
-        Specification.specifications.select(&:failure?).size
+        Bacon.specifications.select(&:failure?).size
       end
 
       def errors
-        Specification.specifications.select(&:error?).size
+        Bacon.specifications.select(&:error?).size
       end
     end
   end
@@ -85,21 +89,23 @@ module Bacon
       print '.'
     end
 
+    def summary
+      "%d specifications (%d requirements), %d failures, %d errors" %
+        [Counter.specifications_ran, Counter.requirements_ran, Counter.failures, Counter.errors]
+    end
+
     def handle_summary
       if Backtraces
         puts
-        Specification.specifications.each do |spec|
+        Bacon.specifications.each do |spec|
           puts spec.error_log unless spec.passed?
           puts
         end
       end
-
       puts "Took: %.6f seconds." % (Time.now - @timer).to_f
-      puts
       @timer = nil
-
-      puts "%d specifications (%d requirements), %d failures, %d errors" %
-        [Counter.specifications_ran, Counter.requirements_ran, Counter.failures, Counter.errors]
+      puts
+      puts summary
     end
   end
 
@@ -123,12 +129,6 @@ module Bacon
   end
 
   class Specification
-    class << self
-      def specifications
-        @specifications ||= []
-      end
-    end
-
     attr_reader :description, :context
 
     def initialize(context, description, block, before_filters, after_filters)
@@ -140,18 +140,22 @@ module Bacon
       @ran_after_filters = false
       @finished = false
 
-      self.class.specifications << self
+      Bacon.specifications << self
     end
 
     def run
-      # TODO concurrent handling
-      Bacon.handle_specification_begin(self)
+      Dispatch::Queue.main.sync do
+        Bacon.handle_specification_begin(self)
+        if (d = Bacon.delegate) && d.respond_to?('baconSpecificationWillStart:')
+          d.baconSpecificationWillStart(self)
+        end
+      end
 
       @before_filters.each { |f| @context.instance_eval(&f) }
-      @number_of_requirements_before = Should.requirements.size
+      @number_of_requirements_before = Bacon.requirements.size
       @context.instance_eval(&@block)
 
-      if passed? && Should.requirements.size == @number_of_requirements_before
+      if passed? && Bacon.requirements.size == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
         raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}")
       end
@@ -165,9 +169,12 @@ module Bacon
         @exception = e
       ensure
         @finished = true
-        # TODO concurrent handling
-        Bacon.handle_specification_end(error_message || '')
-        @context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:true)
+        Dispatch::Queue.main.sync do
+          Bacon.handle_specification_end(error_message || '')
+          #@context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:true)
+          # TODO is it still needed to send it to Context?
+          @context.class.specification_did_finish(self)
+        end
       end
     end
 
@@ -213,16 +220,19 @@ module Bacon
   end
 
   def self.clear
-    @contexts = nil
-    @counter  = nil
+    @contexts = @current_context_index = @specifications = @requirements = nil
   end
 
   def self.contexts
     @contexts ||= []
   end
 
-  def self.add_context(context)
-    contexts << context
+  def self.specifications
+    @specifications ||= []
+  end
+
+  def self.requirements
+    @requirements ||= []
   end
 
   def self.current_context_index
@@ -233,6 +243,12 @@ module Bacon
     contexts[current_context_index]
   end
 
+  # IMPORTANT!
+  #
+  # Make sure to never call this method directly from the main GCD queue.
+  # Instead do something like:
+  #
+  #   Bacon.performSelector('run', withObject:nil, afterDelay:0)
   def self.run
     @timer ||= Time.now
     #handle_context_begin(current_context)
@@ -263,7 +279,7 @@ module Bacon
         delegate.baconDidFinish
       end
       handle_summary
-      exit Specification.specifications.select { |s| !s.passed? }.size
+      exit Counter.not_passed
     end
   end
 
@@ -307,7 +323,7 @@ module Bacon
           @context_depth = context_depth
           @current_specification_index = 0
         end
-        Bacon.add_context(context)
+        Bacon.contexts << context
         context.class_eval(&block)
         context
       end
@@ -429,16 +445,10 @@ class Should
   # kind_of?, nil?, respond_to?, tainted?
   instance_methods.each { |name| undef_method name  if name =~ /\?|^\W+$/ }
 
-  class << self
-    def requirements
-      @requirements ||= []
-    end
-  end
-
   def initialize(object)
     @object = object
     @negated = false
-    self.class.requirements << self
+    Bacon.requirements << self
   end
 
   def not(*args, &block)
