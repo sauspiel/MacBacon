@@ -262,6 +262,10 @@ module Bacon
       !@exception.nil? && !failure?
     end
 
+    def pending?
+      error_message == 'MISSING'
+    end
+
     def error_message
       if bacon_error?
         @exception.count_as.to_s.upcase
