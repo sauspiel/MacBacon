@@ -29,8 +29,8 @@ module Bacon
     attr_accessor :backtraces
 
     # This can be used by a `client' to receive status updates:
-    # * When a spec has finished running.
-    # * When a context has ran all of its spec.
+    # * When a spec will start running: bacon_specification_will_start(spec)
+    # * When a spec has finished running: bacon_specification_did_finish(spec)
     # * When Bacon has finished a spec run.
     attr_accessor :delegate
 
@@ -79,15 +79,14 @@ module Bacon
           end
         end
       end
-      # TODO make this work again
-      #Bacon.context_did_finish(self)
-
       group.notify(queue) do
-        if delegate && delegate.respond_to?('baconDidFinish')
-          delegate.baconDidFinish
+        Dispatch::Queue.main.sync do
+          if delegate.respond_to?('bacon_did_finish')
+            delegate.bacon_did_finish
+          end
+          handle_summary
+          exit Counter.not_passed
         end
-        handle_summary
-        exit Counter.not_passed
       end
     end
   end
@@ -187,9 +186,11 @@ module Bacon
 
   class Specification
     attr_reader :description, :context
+    attr_accessor :delegate
 
-    def initialize(context, description, block, before_filters, after_filters)
-      @context, @description, @block = context, description, block
+    def initialize(context_class, description, block, before_filters, after_filters)
+      @context = context_class.new(self)
+      @description, @block = description, block
       @before_filters, @after_filters = before_filters.dup, after_filters.dup
 
       @postponed_blocks_count = 0
@@ -200,11 +201,17 @@ module Bacon
       Bacon.specifications << self
     end
 
+    def delegate
+      # Add the ability to override, but don't cache Bacon.delegate here so it
+      # can be changed for all Specification instances from Bacon.delegate.
+      @delegate || Bacon.delegate
+    end
+
     def run
       Dispatch::Queue.main.sync do
         Bacon.handle_specification_begin(self)
-        if (d = Bacon.delegate) && d.respond_to?('baconSpecificationWillStart:')
-          d.baconSpecificationWillStart(self)
+        if delegate.respond_to?('bacon_specification_will_start:')
+          delegate.bacon_specification_will_start(self)
         end
       end
 
@@ -228,8 +235,9 @@ module Bacon
         @finished = true
         Dispatch::Queue.main.sync do
           Bacon.handle_specification_end(error_message || '')
-          # TODO is it still needed to send it to Context?
-          @context.class.specification_did_finish(self)
+          if delegate.respond_to?('bacon_specification_did_finish:')
+            delegate.bacon_specification_did_finish(self)
+          end
         end
       end
     end
@@ -276,6 +284,12 @@ module Bacon
   end
 
   class Context
+    attr_reader :specification
+
+    def initialize(specification)
+      @specification = specification
+    end
+
     def raise?(*args, &block); block.raise?(*args); end
     def throw?(*args, &block); block.throw?(*args); end
     def change?(*args, &block); block.change?(*args); end
@@ -304,12 +318,6 @@ module Bacon
         context
       end
 
-      def specification_did_finish(spec)
-        if (d = Bacon.delegate) && d.respond_to?('baconSpecificationDidFinish:')
-          d.baconSpecificationDidFinish(spec)
-        end
-      end
-
       def before(&block); @before << block; end
       def after(&block);  @after << block; end
 
@@ -320,7 +328,7 @@ module Bacon
       def it(description, &block)
         return  unless description =~ Bacon.restrict_name
         block ||= lambda { should.flunk "not implemented" }
-        @specifications << Specification.new(new, description, block, @before, @after)
+        @specifications << Specification.new(self, description, block, @before, @after)
       end
 
       def describe(*args, &block)
