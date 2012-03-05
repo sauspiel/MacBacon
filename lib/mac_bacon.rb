@@ -23,12 +23,11 @@ module Bacon
     raise NameError, "no such context: #{name.inspect}"
   }
 
-  # TODO convert these to normal accessors
-  RestrictName    = //  unless defined? RestrictName
-  RestrictContext = //  unless defined? RestrictContext
-  Backtraces = true  unless defined? Backtraces
-
   class << self
+    attr_accessor :restrict_name, :restrict_context
+
+    attr_accessor :backtraces
+
     # This can be used by a `client' to receive status updates:
     # * When a spec has finished running.
     # * When a context has ran all of its spec.
@@ -37,7 +36,91 @@ module Bacon
 
     attr_accessor :concurrent
     alias_method  :concurrent?, :concurrent
+
+    def clear
+      @contexts = @current_context_index = @specifications = @requirements = nil
+    end
+
+    def contexts
+      @contexts ||= []
+    end
+
+    def specifications
+      @specifications ||= []
+    end
+
+    def requirements
+      @requirements ||= []
+    end
+
+    # TODO these things should go and replaced by a loop that just loops over the contexts and then specs
+    def current_context_index
+      @current_context_index ||= 0
+    end
+
+    def current_context
+      contexts[current_context_index]
+    end
+
+    # IMPORTANT!
+    #
+    # Make sure to never call this method directly from the main GCD queue.
+    # Instead do something like:
+    #
+    #   Bacon.performSelector('run', withObject:nil, afterDelay:0)
+    def run
+      @timer ||= Time.now
+      #handle_context_begin(current_context)
+      #current_context.performSelector("run", withObject:nil, afterDelay:0)
+      self.performSelector("run_all_specs_concurrent", withObject:nil, afterDelay:0)
+      NSApplication.sharedApplication.run
+    end
+
+    def run_all_specs_concurrent
+      queue = Dispatch::Queue.concurrent
+      group = Dispatch::Group.new
+      contexts.each do |context|
+        context.specifications.each do |spec|
+          queue.async(group) do
+            begin
+              spec.run
+            rescue Object => e
+              puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+            end
+          end
+        end
+      end
+      # TODO make this work again
+      #Bacon.context_did_finish(self)
+
+      group.notify(queue) do
+        if delegate && delegate.respond_to?('baconDidFinish')
+          delegate.baconDidFinish
+        end
+        handle_summary
+        exit Counter.not_passed
+      end
+    end
+
+    def context_did_finish(context)
+      handle_context_end(context)
+      if (@current_context_index + 1) < contexts.size
+        @current_context_index += 1
+        run
+      else
+        # DONE
+        if delegate && delegate.respond_to?('baconDidFinish')
+          delegate.baconDidFinish
+        end
+        handle_summary
+        exit Specification.specifications.select { |s| !s.passed? }.size
+      end
+    end
   end
+
+  self.restrict_name = //
+  self.restrict_context = //
+  self.backtraces = true
   # TODO for now we always run concurrent, because I ripped out the code needed for non-concurrent running
   self.concurrent = true
 
@@ -95,7 +178,7 @@ module Bacon
     end
 
     def handle_summary
-      if Backtraces
+      if Bacon.backtraces
         puts
         Bacon.specifications.each do |spec|
           puts spec.error_log unless spec.passed?
@@ -171,7 +254,6 @@ module Bacon
         @finished = true
         Dispatch::Queue.main.sync do
           Bacon.handle_specification_end(error_message || '')
-          #@context.class.performSelectorOnMainThread('specification_did_finish:', withObject:self, waitUntilDone:true)
           # TODO is it still needed to send it to Context?
           @context.class.specification_did_finish(self)
         end
@@ -219,85 +301,6 @@ module Bacon
     end
   end
 
-  def self.clear
-    @contexts = @current_context_index = @specifications = @requirements = nil
-  end
-
-  def self.contexts
-    @contexts ||= []
-  end
-
-  def self.specifications
-    @specifications ||= []
-  end
-
-  def self.requirements
-    @requirements ||= []
-  end
-
-  def self.current_context_index
-    @current_context_index ||= 0
-  end
-
-  def self.current_context
-    contexts[current_context_index]
-  end
-
-  # IMPORTANT!
-  #
-  # Make sure to never call this method directly from the main GCD queue.
-  # Instead do something like:
-  #
-  #   Bacon.performSelector('run', withObject:nil, afterDelay:0)
-  def self.run
-    @timer ||= Time.now
-    #handle_context_begin(current_context)
-    #current_context.performSelector("run", withObject:nil, afterDelay:0)
-    self.performSelector("run_all_specs_concurrent", withObject:nil, afterDelay:0)
-    NSApplication.sharedApplication.run
-  end
-
-  def self.run_all_specs_concurrent
-    queue = Dispatch::Queue.concurrent
-    group = Dispatch::Group.new
-    contexts.each do |context|
-      context.specifications.each do |spec|
-        queue.async(group) do
-          begin
-            spec.run
-          rescue Object => e
-            puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
-          end
-        end
-      end
-    end
-    # TODO make this work again
-    #Bacon.context_did_finish(self)
-
-    group.notify(queue) do
-      if delegate && delegate.respond_to?('baconDidFinish')
-        delegate.baconDidFinish
-      end
-      handle_summary
-      exit Counter.not_passed
-    end
-  end
-
-  def self.context_did_finish(context)
-    handle_context_end(context)
-    if (@current_context_index + 1) < contexts.size
-      @current_context_index += 1
-      run
-    else
-      # DONE
-      if delegate && delegate.respond_to?('baconDidFinish')
-        delegate.baconDidFinish
-      end
-      handle_summary
-      exit Specification.specifications.select { |s| !s.passed? }.size
-    end
-  end
-
   class Context
     def raise?(*args, &block); block.raise?(*args); end
     def throw?(*args, &block); block.throw?(*args); end
@@ -328,22 +331,7 @@ module Bacon
         context
       end
 
-      #def run
-        #queue = Dispatch::Queue.concurrent
-        #group = Dispatch::Group.new
-        #specifications.each do |spec|
-          #queue.async(group) do
-            #begin
-              #spec.run
-            #rescue Object => e
-              #puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
-            #end
-          #end
-        #end
-        #group.wait
-        #Bacon.context_did_finish(self)
-      #end
-
+      # TODO remove this stuff, we simply dispatch them from a loop
       def current_specification
         specifications[@current_specification_index]
       end
@@ -371,7 +359,7 @@ module Bacon
       end
 
       def it(description, &block)
-        return  unless description =~ RestrictName
+        return  unless description =~ Bacon.restrict_name
         block ||= lambda { should.flunk "not implemented" }
         @specifications << Specification.new(new, description, block, @before, @after)
       end
