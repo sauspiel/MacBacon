@@ -153,9 +153,12 @@ module Bacon
     def handle_summary
       if Bacon.backtraces
         puts
+        puts
         Bacon.specifications.each do |spec|
-          puts spec.error_log unless spec.passed?
-          puts
+          unless spec.passed?
+            puts spec.error_log
+            puts
+          end
         end
       end
       puts "Took: %.6f seconds." % (Time.now - @timer).to_f
