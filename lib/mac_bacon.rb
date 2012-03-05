@@ -187,6 +187,65 @@ module Bacon
     end
   end
 
+  class Context
+    attr_reader :specification
+
+    def initialize(specification)
+      @specification = specification
+    end
+
+    def raise?(*args, &block); block.raise?(*args); end
+    def throw?(*args, &block); block.throw?(*args); end
+    def change?(*args, &block); block.change?(*args); end
+
+    def should(*args, &block)
+      if self.class.context_depth == 0
+        it('should '+args.first,&block)
+      else
+        super(*args,&block)
+      end
+    end
+
+    def describe(*args, &block)
+      self.class.describe(*args, &block)
+    end
+
+    class << self
+      attr_reader :name, :block, :context_depth, :specifications
+
+      def init_context(name, context_depth, before = nil, after = nil, &block)
+        context = Class.new(self) do
+          @name = name
+          @before, @after = (before ? before.dup : []), (after ? after.dup : [])
+          @block = block
+          @specifications = []
+          @context_depth = context_depth
+        end
+        Bacon.contexts << context
+        context.class_eval(&block)
+        context
+      end
+
+      def before(&block); @before << block; end
+      def after(&block);  @after << block; end
+
+      def behaves_like(*names)
+        names.each { |name| class_eval(&Shared[name]) }
+      end
+
+      def it(description, &block)
+        return  unless description =~ Bacon.restrict_name
+        block ||= lambda { should.flunk "not implemented" }
+        @specifications << Specification.new(self, description, block, @before, @after)
+      end
+
+      def describe(*args, &block)
+        args.unshift(name)
+        init_context(args.join(' '), @context_depth + 1, @before, @after, &block)
+      end
+    end
+  end # Context
+
   class Specification
     attr_reader :description, :context
     attr_accessor :delegate
@@ -196,9 +255,6 @@ module Bacon
       @description, @block = description, block
       @before_filters, @after_filters = before_filters.dup, after_filters.dup
 
-      @postponed_blocks_count = 0
-      @ran_spec_block = false
-      @ran_after_filters = false
       @finished = false
 
       Bacon.specifications << self
@@ -288,66 +344,8 @@ module Bacon
         log
       end
     end
-  end
+  end # Specification
 
-  class Context
-    attr_reader :specification
-
-    def initialize(specification)
-      @specification = specification
-    end
-
-    def raise?(*args, &block); block.raise?(*args); end
-    def throw?(*args, &block); block.throw?(*args); end
-    def change?(*args, &block); block.change?(*args); end
-
-    def should(*args, &block)
-      if self.class.context_depth == 0
-        it('should '+args.first,&block)
-      else
-        super(*args,&block)
-      end
-    end
-
-    def describe(*args, &block)
-      self.class.describe(*args, &block)
-    end
-
-    class << self
-      attr_reader :name, :block, :context_depth, :specifications
-
-      def init_context(name, context_depth, before = nil, after = nil, &block)
-        context = Class.new(self) do
-          @name = name
-          @before, @after = (before ? before.dup : []), (after ? after.dup : [])
-          @block = block
-          @specifications = []
-          @context_depth = context_depth
-        end
-        Bacon.contexts << context
-        context.class_eval(&block)
-        context
-      end
-
-      def before(&block); @before << block; end
-      def after(&block);  @after << block; end
-
-      def behaves_like(*names)
-        names.each { |name| class_eval(&Shared[name]) }
-      end
-
-      def it(description, &block)
-        return  unless description =~ Bacon.restrict_name
-        block ||= lambda { should.flunk "not implemented" }
-        @specifications << Specification.new(self, description, block, @before, @after)
-      end
-
-      def describe(*args, &block)
-        args.unshift(name)
-        init_context(args.join(' '), @context_depth + 1, @before, @after, &block)
-      end
-    end
-  end
 end
 
 
