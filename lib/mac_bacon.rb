@@ -306,6 +306,10 @@ module Bacon
       end
     end
 
+    def describe(*args, &block)
+      self.class.describe(*args, &block)
+    end
+
     class << self
       attr_reader :name, :block, :context_depth, :specifications
 

@@ -360,34 +360,36 @@ describe "Methods" do
   end
 end
 
-#describe 'describe arguments' do
+describe 'describe arguments' do
+  def check(ctx, name)
+    ctx.ancestors.should.include Bacon::Context
+    ctx.instance_variable_get('@name').should == name
+  end
 
-  #def check(ctx, name)
-    #ctx.ancestors.should.include Bacon::Context
-    #ctx.instance_variable_get('@name').should == name
-  #end
+  it 'should work with string' do
+    check(Kernel.send(:describe, 'string') {}, 'string')
+  end
 
-  #it 'should work with string' do
-    #check(describe('string') {},'string')
-  #end
+  it 'should work with symbols' do
+    check(Kernel.send(:describe, :behaviour) {}, 'behaviour')
+  end
 
-  #it 'should work with symbols' do
-    #check(describe(:behaviour) {},'behaviour')
-  #end
-   
-  #it 'should work with modules' do
-    #check(describe(Bacon) {},'Bacon')
-  #end
+  it 'should work with modules' do
+    check(Kernel.send(:describe, Bacon) {}, 'Bacon')
+  end
 
-  #it 'should work with namespaced modules' do
-    #check(describe(Bacon::Context) {},'Bacon::Context')
-  #end
+  it 'should work with namespaced modules' do
+    check(Kernel.send(:describe, Bacon::Context) {}, 'Bacon::Context')
+  end
 
-  #it 'should work with multiple arguments' do
-    #check(describe(Bacon::Context, :empty) {},'Bacon::Context empty')
-  #end
+  it 'should work with multiple arguments' do
+    check(Kernel.send(:describe, Bacon::Context, :empty) {}, 'Bacon::Context empty')
+  end
 
-#end
+  it "prefixes the name of a nested context with that of the parent context" do
+    check(describe('are nested') {}, 'describe arguments are nested')
+  end
+end
 
 
 # TODO move to MacBacon specific spec?
