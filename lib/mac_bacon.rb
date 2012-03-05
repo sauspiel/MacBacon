@@ -38,7 +38,7 @@ module Bacon
     alias_method  :concurrent?, :concurrent
 
     def clear
-      @contexts = @current_context_index = @specifications = @requirements = nil
+      @contexts = @specifications = @requirements = nil
     end
 
     def contexts
@@ -53,15 +53,6 @@ module Bacon
       @requirements ||= []
     end
 
-    # TODO these things should go and replaced by a loop that just loops over the contexts and then specs
-    def current_context_index
-      @current_context_index ||= 0
-    end
-
-    def current_context
-      contexts[current_context_index]
-    end
-
     # IMPORTANT!
     #
     # Make sure to never call this method directly from the main GCD queue.
@@ -70,8 +61,6 @@ module Bacon
     #   Bacon.performSelector('run', withObject:nil, afterDelay:0)
     def run
       @timer ||= Time.now
-      #handle_context_begin(current_context)
-      #current_context.performSelector("run", withObject:nil, afterDelay:0)
       self.performSelector("run_all_specs_concurrent", withObject:nil, afterDelay:0)
       NSApplication.sharedApplication.run
     end
@@ -99,21 +88,6 @@ module Bacon
         end
         handle_summary
         exit Counter.not_passed
-      end
-    end
-
-    def context_did_finish(context)
-      handle_context_end(context)
-      if (@current_context_index + 1) < contexts.size
-        @current_context_index += 1
-        run
-      else
-        # DONE
-        if delegate && delegate.respond_to?('baconDidFinish')
-          delegate.baconDidFinish
-        end
-        handle_summary
-        exit Specification.specifications.select { |s| !s.passed? }.size
       end
     end
   end
@@ -324,30 +298,15 @@ module Bacon
           @block = block
           @specifications = []
           @context_depth = context_depth
-          @current_specification_index = 0
         end
         Bacon.contexts << context
         context.class_eval(&block)
         context
       end
 
-      # TODO remove this stuff, we simply dispatch them from a loop
-      def current_specification
-        specifications[@current_specification_index]
-      end
-
       def specification_did_finish(spec)
         if (d = Bacon.delegate) && d.respond_to?('baconSpecificationDidFinish:')
           d.baconSpecificationDidFinish(spec)
-        end
-        unless Bacon.concurrent?
-          # TODO update to no longer use the runloop to schedule specs
-          if (@current_specification_index + 1) < specifications.size
-            @current_specification_index += 1
-            run
-          else
-            Bacon.context_did_finish(self)
-          end
         end
       end
 
