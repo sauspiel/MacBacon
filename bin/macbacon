@@ -1,11 +1,12 @@
 #!/usr/bin/env ruby
 # -*- ruby -*-
 
-require 'optparse'
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), '../lib/')
-module Bacon; end
+require 'mac_bacon'
 
+require 'optparse'
 automatic = false
+
 output = 'SpecDoxOutput'
 
 opts = OptionParser.new("", 24, '  ') { |opts|
@@ -58,27 +59,27 @@ opts = OptionParser.new("", 24, '  ') { |opts|
     output = format + "Output" 
   }
   opts.on("-Q", "--no-backtrace", "don't print backtraces") {
-    Bacon.const_set :Backtraces, false
+    Bacon.bactrackes = false
   }
 
   opts.on("-c", "--concurrent", "runs multiple specs concurrently on multiple threads") {
-    require 'mac_bacon'
     Bacon::Dispatch.concurrent = true
   }
 
   opts.on("-a", "--automatic", "gather tests from ./test/, include ./lib/") {
+    $LOAD_PATH.unshift "ext"  if File.directory? "ext"
     $LOAD_PATH.unshift "lib"  if File.directory? "lib"
     automatic = true
   }
 
   opts.on('-n', '--name NAME', String,
           "runs tests matching regexp NAME") { |n|
-    Bacon.const_set :RestrictName, Regexp.new(n)
+    Bacon.restrict_name = Regexp.new(n)
   }
   
   opts.on('-t', '--testcase TESTCASE', String,
           "runs tests in TestCases matching regexp TESTCASE") { |t|
-    Bacon.const_set :RestrictContext, Regexp.new(t)
+    Bacon.restrict_context = Regexp.new(t)
   }
 
   opts.separator ""
@@ -90,7 +91,6 @@ opts = OptionParser.new("", 24, '  ') { |opts|
   end
 
   opts.on_tail("--version", "Show version") do
-    require 'mac_bacon'
     puts "macbacon #{Bacon::VERSION}"
     exit
   end
@@ -111,8 +111,6 @@ if files.empty?
   puts opts.banner
   exit 1
 end
-
-require 'mac_bacon'
 
 Bacon.extend Bacon.const_get(output) rescue abort "No such formatter: #{output}"
 
