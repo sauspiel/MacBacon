@@ -72,7 +72,8 @@ module Bacon
         context.specifications.each do |spec|
           queue.async(group) do
             begin
-              spec.run
+              spec.performSelector('run', withObject:nil, afterDelay:0)
+              CFRunLoopRun()
             rescue Object => e
               puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
             end
@@ -210,6 +211,15 @@ module Bacon
       self.class.describe(*args, &block)
     end
 
+    def wait(seconds)
+      CFRunLoopRunInMode(KCFRunLoopDefaultMode, seconds, false)
+      yield if block_given?
+    end
+
+    def wait_for_change(*args)
+      yield if block_given?
+    end
+
     class << self
       attr_reader :name, :block, :context_depth, :specifications
 
@@ -298,6 +308,7 @@ module Bacon
             delegate.bacon_specification_did_finish(self)
           end
         end
+        CFRunLoopStop(CFRunLoopGetCurrent())
       end
     end
 
