@@ -100,8 +100,11 @@ module Bacon
       # TODO bug in MacRuby which thinks that the main queue is not a Queue object
       #group.notify(main_queue) do
       group.notify(concurrent_queue) do
-        #Dispatch::Queue.main.sync do
-        Bacon.dispatch_on_main_thread { bacon_did_finish }
+        Dispatch::Queue.main.sync do
+          bacon_did_finish
+        end
+        # TODO MacRuby bug, leads to segfault
+        #Bacon.dispatch_on_main_thread { bacon_did_finish }
       end
     end
 
@@ -354,7 +357,7 @@ module Bacon
 
       if passed? && Bacon.requirements.size == @number_of_requirements_before
         # the specification did not contain any requirements, so it flunked
-        raise Error.new(:missing, "empty specification: #{@context.class.name} #{@description}")
+        raise Error.new(:missing, "empty specification: #{full_name}")
       end
 
     rescue Object => e
@@ -382,7 +385,7 @@ module Bacon
     # TODO does not actually continue the spec execution...
     def timedout!
       puts "TIMED OUT!"
-      @exception = Error.new(:error, "timed out: #{@context.class.name} #{@description}")
+      @exception = Error.new(:error, "timed out: #{full_name}")
       @finished = true
       if Dispatch::Queue.current.to_s == Dispatch::Queue.main.to_s
         puts "OH NOES, TRYING TO KILL THE RUNLOOP OF THE MAIN THREAD!"
@@ -394,6 +397,10 @@ module Bacon
         end
       end
       CFRunLoopStop(CFRunLoopGetCurrent())
+    end
+
+    def full_name
+      "#{@context.class.name} #{@description}"
     end
 
     def finished?
