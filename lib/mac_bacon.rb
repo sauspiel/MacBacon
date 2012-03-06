@@ -276,10 +276,17 @@ module Bacon
     end
 
     class << self
-      attr_reader :name, :block, :context_depth, :specifications
+      attr_reader :name, :block, :context_depth, :specifications, :defined_in
       attr_accessor :run_on_main_thread, :timeout
 
       def init_context(name, context_depth, before = nil, after = nil, &block)
+        # find the first file in the backtrace which is not this file
+        if defined_in = caller.find { |line| line[0,__FILE__.size] != __FILE__ }
+          defined_in = defined_in.match(/^(.+?):\d+/)[1]
+        else
+          puts "[!] Unable to determine the file in which the context is defined."
+        end
+
         context = Class.new(self) do
           @name = name
           @before, @after = (before ? before.dup : []), (after ? after.dup : [])
@@ -287,6 +294,7 @@ module Bacon
           @specifications = []
           @context_depth = context_depth
           @timeout = 10 # seconds
+          @defined_in = defined_in
         end
         Bacon.contexts << context
         context.class_eval(&block)
