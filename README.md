@@ -433,9 +433,9 @@ git://github.com/alloy/MacBacon.git
 Copying
 =======
 
-Copyright (C) 2007 - 2012 Christian Neukirchen <purl.org/net/chneukirchen>
+Copyright (C) 2007 - 2012 Christian Neukirchen (purl.org/net/chneukirchen)
 
-Copyright (C) 2011 - 2012 Eloy Durán <eloy.de.enige@gmail.com>
+Copyright (C) 2011 - 2012 Eloy Durán (eloy.de.enige@gmail.com)
 
 Bacon is freely distributable under the terms of an MIT-style license.
 See COPYING or http://www.opensource.org/licenses/mit-license.php.
