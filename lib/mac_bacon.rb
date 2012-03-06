@@ -282,7 +282,7 @@ module Bacon
       def init_context(name, context_depth, before = nil, after = nil, &block)
         # find the first file in the backtrace which is not this file
         if defined_in = caller.find { |line| line[0,__FILE__.size] != __FILE__ }
-          defined_in = defined_in.match(/^(.+?):\d+/)[1]
+          defined_in = File.expand_path(defined_in.match(/^(.+?):\d+/)[1])
         else
           puts "[!] Unable to determine the file in which the context is defined."
         end
