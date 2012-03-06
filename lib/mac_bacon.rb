@@ -66,22 +66,27 @@ module Bacon
     end
 
     def run_all_specs_concurrent
-      queue = Dispatch::Queue.concurrent
-      group = Dispatch::Group.new
+      main_queue       = Dispatch::Queue.main
+      concurrent_queue = Dispatch::Queue.concurrent
+      group            = Dispatch::Group.new
       contexts.each do |context|
+        queue = context.run_on_main_thread? ? main_queue : concurrent_queue
         context.specifications.each do |spec|
           queue.async(group) do
             begin
               spec.performSelector('run', withObject:nil, afterDelay:0)
-              CFRunLoopRun()
+              CFRunLoopRun() unless context.run_on_main_thread? # Should already have a running runloop!
             rescue Object => e
               puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
             end
           end
         end
       end
-      group.notify(queue) do
-        Dispatch::Queue.main.sync do
+      # TODO bug in MacRuby which thinks that the main queue is not a Queue object
+      #group.notify(main_queue) do
+      group.notify(concurrent_queue) do
+        #Dispatch::Queue.main.sync do
+        Bacon.dispatch_on_main_thread do
           if delegate.respond_to?('bacon_did_finish')
             delegate.bacon_did_finish
           end
@@ -90,6 +95,16 @@ module Bacon
         end
       end
     end
+
+    def dispatch_on_main_thread(&block)
+      # TODO MacRuby bug/feature, can't compare two Queue objects directly, have to use their names
+      if Dispatch::Queue.current.to_s == Dispatch::Queue.main.to_s
+        block.call
+      else
+        Dispatch::Queue.main.sync(&block)
+      end
+    end
+
   end
 
   self.restrict_name = //
@@ -222,6 +237,7 @@ module Bacon
 
     class << self
       attr_reader :name, :block, :context_depth, :specifications
+      attr_writer :run_on_main_thread
 
       def init_context(name, context_depth, before = nil, after = nil, &block)
         context = Class.new(self) do
@@ -234,6 +250,10 @@ module Bacon
         Bacon.contexts << context
         context.class_eval(&block)
         context
+      end
+
+      def run_on_main_thread?
+        @run_on_main_thread || !Bacon.concurrent?
       end
 
       def before(&block); @before << block; end
@@ -277,7 +297,7 @@ module Bacon
     end
 
     def run
-      Dispatch::Queue.main.sync do
+      Bacon.dispatch_on_main_thread do
         Bacon.handle_specification_begin(self)
         if delegate.respond_to?('bacon_specification_will_start:')
           delegate.bacon_specification_will_start(self)
@@ -302,13 +322,16 @@ module Bacon
         @exception = e
       ensure
         @finished = true
-        Dispatch::Queue.main.sync do
+        Bacon.dispatch_on_main_thread do
           Bacon.handle_specification_end(error_message || '')
           if delegate.respond_to?('bacon_specification_did_finish:')
             delegate.bacon_specification_did_finish(self)
           end
         end
-        CFRunLoopStop(CFRunLoopGetCurrent())
+        # Never kill the runloop of the main thread!
+        unless Dispatch::Queue.current == Dispatch::Queue.main
+          CFRunLoopStop(CFRunLoopGetCurrent())
+        end
       end
     end
 
