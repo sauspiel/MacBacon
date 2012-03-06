@@ -208,6 +208,26 @@ You can use modules and extend to group matchers for use in multiple
 contexts.
 
 
+Concurrency
+===========
+
+When the `-c`, or `--concurrency`, option is passed to the `macbacon`
+command-line tool, than all specifications will be run concurrent through the
+use of [Grand Central Dispatch][GCD].
+
+Each specification runs in its own thread and gets its own runloop. In case you
+wat to perform certain specifications on the main thread (e.g. when dealing
+with views), you can specify that like so:
+
+    describe "Deals with the UI" do
+      self.run_on_main_thread = true
+
+      it "runs on the main thread" do
+        # ...
+      end
+    end
+
+
 Objective-C runloop macros
 ==========================
 
@@ -425,3 +445,5 @@ test/spec:: <http://test-spec.rubyforge.org/>
 Christian Neukirchen:: <http://chneukirchen.org/>
 Eloy Durán:: <http://soup.superalloy.nl/>
 
+
+[GCD]: https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/OperationQueues/OperationQueues.html#//apple_ref/doc/uid/TP40008091-CH102-SW1
