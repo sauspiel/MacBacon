@@ -8,9 +8,7 @@
 # See COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 framework "Cocoa"
-
-# TODO
-#require "mac_bacon/helpers"
+require "mac_bacon/helpers"
 
 # We need to use Kernel::print when printing which specification is being run.
 # But we want to know this as soon as possible, hence we need to sync.
@@ -85,6 +83,12 @@ module Bacon
         context.specifications.each do |spec|
           queue.async(group) do
             begin
+              NSTimer.scheduledTimerWithTimeInterval(context.timeout,
+                                              target:spec,
+                                            selector:'timedout!',
+                                            userInfo:nil,
+                                             repeats:false)
+
               spec.performSelector('run', withObject:nil, afterDelay:0)
               CFRunLoopRun() unless context.run_on_main_thread? # Should already have a running runloop!
             rescue Object => e
@@ -248,18 +252,34 @@ module Bacon
       self.class.describe(*args, &block)
     end
 
-    def wait(seconds)
-      CFRunLoopRunInMode(KCFRunLoopDefaultMode, seconds, false)
+    # If no explicit time to wait is given, then execution can be resumed by
+    # calling the #resume method or until the Context#timeout has been reached.
+    def wait(seconds = nil)
+      if seconds
+        CFRunLoopRunInMode(KCFRunLoopDefaultMode, seconds, false)
+      else
+        @postpone_execution = true
+        CFRunLoopRunInMode(KCFRunLoopDefaultMode, 0.001, false) while @postpone_execution
+      end
       yield if block_given?
     end
 
-    def wait_for_change(*args)
-      yield if block_given?
+    def resume
+      @postpone_execution = false
+    end
+
+    def wait_for_change(object_to_observe, key_path, &block)
+      object_to_observe.addObserver(self, forKeyPath:key_path, options:0, context:nil)
+      wait(&block)
+    end
+
+    def observeValueForKeyPath(key_path, ofObject:object, change:_, context:__)
+      resume
     end
 
     class << self
       attr_reader :name, :block, :context_depth, :specifications
-      attr_writer :run_on_main_thread
+      attr_accessor :run_on_main_thread, :timeout
 
       def init_context(name, context_depth, before = nil, after = nil, &block)
         context = Class.new(self) do
@@ -268,6 +288,7 @@ module Bacon
           @block = block
           @specifications = []
           @context_depth = context_depth
+          @timeout = 10 # seconds
         end
         Bacon.contexts << context
         context.class_eval(&block)
@@ -356,6 +377,23 @@ module Bacon
           CFRunLoopStop(CFRunLoopGetCurrent())
         end
       end
+    end
+
+    # TODO does not actually continue the spec execution...
+    def timedout!
+      puts "TIMED OUT!"
+      @exception = Error.new(:error, "timed out: #{@context.class.name} #{@description}")
+      @finished = true
+      if Dispatch::Queue.current.to_s == Dispatch::Queue.main.to_s
+        puts "OH NOES, TRYING TO KILL THE RUNLOOP OF THE MAIN THREAD!"
+      end
+      Bacon.dispatch_on_main_thread do
+        Bacon.handle_specification_end(error_message || '')
+        if delegate.respond_to?('bacon_specification_did_finish:')
+          delegate.bacon_specification_did_finish(self)
+        end
+      end
+      CFRunLoopStop(CFRunLoopGetCurrent())
     end
 
     def finished?
