@@ -216,8 +216,8 @@ Often in Objective-C apps, code will *not* execute immediately, but
 scheduled on a runloop for later execution. Therefor a mechanism is
 provided that will postpone execution of blocks for a period of time.
 
-You can event nest these blocks. However, with the exception of `wait`
-with an explicit time, you can *not* have multiple at the same time.
+(Note that using a block is imply syntactic sugar, you can call wait
+without a block too.)
 
 All these macros may be used in before and after filters as well.
 
@@ -271,6 +271,7 @@ want to specify the timeout use
 
       def compute_an_attribute
         # trust me, this takes a few ms
+        self.an_attribute = 'changed'
       end
     end
 
@@ -312,6 +313,7 @@ bacon standalone runner
     -o, --output FORMAT      do FORMAT (SpecDox/TestUnit/Tap) output
     -Q, --no-backtrace       don't print backtraces  
     -a, --automatic          gather tests from ./test/, include ./lib/
+    -c, --concurrent         runs multiple specs concurrently on multiple GCD threads
     -n, --name NAME          runs tests matching regexp NAME
     -t, --testcase TESTCASE  runs tests in TestCases matching regexp TESTCASE
 
@@ -378,6 +380,13 @@ History
   * exit with non-zero status when there were failures/errors
   * Add `wait` without explicit time
   * Add `wait_for_change`
+
+* TODO, 2012: MacBacon fork release 1.4
+  * Use GCD to run specs concurrently when started with the `-c` command-line
+    option.
+  * Add delegate support, which notifies a delegate when a spec will start and
+    once it finishes and also once Bacon has finished the run.
+
 
 Contact
 =======

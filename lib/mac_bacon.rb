@@ -15,7 +15,7 @@ require "mac_bacon/helpers"
 $stdout.sync = true
 
 module Bacon
-  VERSION = "1.3"
+  VERSION = "1.4"
 
 
   class << self
