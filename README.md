@@ -256,9 +256,8 @@ All these macros may be used in before and after filters as well.
 
 ### `wait` without fixed period of time, until `resume` is called
 
-By default this usage of `wait` will wait for 1 second. If `resume`
-has not been called by that time, the spec fails. If you want to
-specify the timeout use `wait_max(timeout, &block)` instead.
+By default this usage of `wait` will wait for 10 seconds. If `resume`
+has not been called by that time, the spec fails.
 
     def aDelegateCallbackMethod(sender)
       @delegateCallbackMethodCalled = true
@@ -275,16 +274,21 @@ specify the timeout use `wait_max(timeout, &block)` instead.
       end
     end
 
+If you want to specify the timeout, you can do that like so:
+
+    describe "specs that will wait for resume" do
+      self.timeout = 20 # seconds
+    end
+
 
 ### `wait_for_change` (Key-Value Observing)
 
 This macro makes the specification an observer of the key path of the
 given object for the duration of the specification.
 
-By default this usage of `wait_for_change` will wait for 1 second. If
-the KVO message has not arrived by that time, the spec fails. If you
-want to specify the timeout use
-`wait_for_change(observable, key_path, timeout)` instead.
+Like with `wait` without a fixed period, this usage of
+`wait_for_change` will by default wait for 10 seconds. If the KVO
+message has not arrived by that time, the spec fails.
 
     class AKeyValueObservableClass
       attr_accessor :an_attribute
