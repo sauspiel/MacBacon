@@ -83,12 +83,6 @@ module Bacon
         context.specifications.each do |spec|
           queue.async(group) do
             begin
-              NSTimer.scheduledTimerWithTimeInterval(context.timeout,
-                                              target:spec,
-                                            selector:'timedout!',
-                                            userInfo:nil,
-                                             repeats:false)
-
               spec.performSelector('run', withObject:nil, afterDelay:0)
               CFRunLoopRun() unless context.run_on_main_thread? # Should already have a running runloop!
             rescue Object => e
@@ -100,7 +94,8 @@ module Bacon
       # TODO bug in MacRuby which thinks that the main queue is not a Queue object
       #group.notify(main_queue) do
       group.notify(concurrent_queue) do
-        Dispatch::Queue.main.sync do
+        #self.performSelectorOnMainThread('bacon_did_finish', withObject:nil, waitUntilDone:true)
+        Dispatch::Queue.main.async do
           bacon_did_finish
         end
         # TODO MacRuby bug, leads to segfault
@@ -344,10 +339,18 @@ module Bacon
     end
 
     def run
-      Bacon.dispatch_on_main_thread do
+      @timer = NSTimer.scheduledTimerWithTimeInterval(@context.class.timeout,
+                                               target:self,
+                                             selector:'timedout!',
+                                             userInfo:nil,
+                                              repeats:false)
+
+      #Bacon.dispatch_on_main_thread do
+      Dispatch::Queue.main.async do
         Bacon.handle_specification_begin(self)
         if delegate.respond_to?('bacon_specification_will_start:')
           delegate.bacon_specification_will_start(self)
+          #delegate.performSelectorOnMainThread('bacon_specification_will_start:', withObject:self, waitUntilDone:true)
         end
       end
 
@@ -368,15 +371,18 @@ module Bacon
       rescue Object => e
         @exception = e
       ensure
+        @timer.invalidate
         @finished = true
-        Bacon.dispatch_on_main_thread do
+        #Bacon.dispatch_on_main_thread do
+        Dispatch::Queue.main.async do
           Bacon.handle_specification_end(error_message || '')
           if delegate.respond_to?('bacon_specification_did_finish:')
             delegate.bacon_specification_did_finish(self)
+            #delegate.performSelectorOnMainThread('bacon_specification_did_finish:', withObject:self, waitUntilDone:true)
           end
         end
         # Never kill the runloop of the main thread!
-        unless Dispatch::Queue.current == Dispatch::Queue.main
+        unless Dispatch::Queue.current.to_s == Dispatch::Queue.main.to_s
           CFRunLoopStop(CFRunLoopGetCurrent())
         end
       end
@@ -384,16 +390,18 @@ module Bacon
 
     # TODO does not actually continue the spec execution...
     def timedout!
-      puts "TIMED OUT!"
+      puts "TIMED OUT: #{full_name}"
       @exception = Error.new(:error, "timed out: #{full_name}")
       @finished = true
       if Dispatch::Queue.current.to_s == Dispatch::Queue.main.to_s
         puts "OH NOES, TRYING TO KILL THE RUNLOOP OF THE MAIN THREAD!"
       end
-      Bacon.dispatch_on_main_thread do
+      #Bacon.dispatch_on_main_thread do
+      Dispatch::Queue.main.async do
         Bacon.handle_specification_end(error_message || '')
         if delegate.respond_to?('bacon_specification_did_finish:')
           delegate.bacon_specification_did_finish(self)
+          #delegate.performSelectorOnMainThread('bacon_specification_did_finish:', withObject:self, waitUntilDone:true)
         end
       end
       CFRunLoopStop(CFRunLoopGetCurrent())
