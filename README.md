@@ -406,10 +406,13 @@ History
   * Add `wait_for_change`
 
 * TODO, 2012: MacBacon fork release 1.4
-  * Use GCD to run specs concurrently when started with the `-c` command-line
-    option.
-  * Add delegate support, which notifies a delegate when a spec will start and
-    once it finishes and also once Bacon has finished the run.
+  * Use GCD to run specs concurrently when started with the `-c` or
+    `--concurrency` command-line options.
+  * Add delegate support, which notifies a delegate when a spec will
+    start and once it finishes and also once Bacon has finished the
+    run.
+  * Simplified internals by removing callback/delegate system in
+    favor of nested runloops.
 
 
 Contact
