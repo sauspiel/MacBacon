@@ -433,9 +433,9 @@ git://github.com/alloy/MacBacon.git
 Copying
 =======
 
-Copyright (C) 2007 - 2012 Christian Neukirchen (purl.org/net/chneukirchen)
+Copyright (C) 2007 - 2012 Christian Neukirchen <http://purl.org/net/chneukirchen>
 
-Copyright (C) 2011 - 2012 Eloy Durán (eloy.de.enige@gmail.com)
+Copyright (C) 2011 - 2012 Eloy Durán <eloy.de.enige@gmail.com>
 
 Bacon is freely distributable under the terms of an MIT-style license.
 See COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -444,12 +444,12 @@ See COPYING or http://www.opensource.org/licenses/mit-license.php.
 Links
 =====
 
-Behavior-Driven Development:: <http://behaviour-driven.org/>
-RSpec:: <http://rspec.rubyforge.org/>
-test/spec:: <http://test-spec.rubyforge.org/>
+* Behavior-Driven Development:: <http://behaviour-driven.org/>
+* RSpec:: <http://rspec.rubyforge.org/>
+* test/spec:: <http://test-spec.rubyforge.org/>
 
-Christian Neukirchen:: <http://chneukirchen.org/>
-Eloy Durán:: <http://soup.superalloy.nl/>
+* Christian Neukirchen:: <http://chneukirchen.org/>
+* Eloy Durán:: <http://twitter.com/alloy>
 
 
 [GCD]: https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/OperationQueues/OperationQueues.html#//apple_ref/doc/uid/TP40008091-CH102-SW1
