@@ -426,7 +426,16 @@ if Bacon.concurrent?
     end
   end
 else
-  puts "[!] Skipping the concurrency related specs, as Bacon is not running in concurrent mode. Enable it with the `-c' command-line option."
+  puts "[!] Skipping the majority of the concurrency related specs, as Bacon is not running in concurrent mode. Enable it with the `-c' command-line option."
+  describe "Concurrency" do
+    it "returns that the specifications of the context should be run on the main thread by default" do
+      self.class.should.run_on_main_thread
+    end
+
+    it "forces the specifications to run on the main thread" do
+      Dispatch::Queue.current.to_s.should == Dispatch::Queue.main.to_s
+    end
+  end
 end
 
 describe "delegate callbacks" do

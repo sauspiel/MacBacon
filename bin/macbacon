@@ -62,8 +62,8 @@ opts = OptionParser.new("", 24, '  ') { |opts|
     Bacon.bactrackes = false
   }
 
-  opts.on("-c", "--concurrent", "runs multiple specs concurrently on multiple threads") {
-    Bacon::Dispatch.concurrent = true
+  opts.on("-c", "--concurrent", "runs multiple specs concurrently on multiple GCD threads") {
+    Bacon.concurrent = true
   }
 
   opts.on("-a", "--automatic", "gather tests from ./test/, include ./lib/") {

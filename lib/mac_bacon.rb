@@ -19,9 +19,6 @@ $stdout.sync = true
 module Bacon
   VERSION = "1.3"
 
-  Shared = Hash.new { |_, name|
-    raise NameError, "no such context: #{name.inspect}"
-  }
 
   class << self
     attr_accessor :restrict_name, :restrict_context
@@ -61,8 +58,22 @@ module Bacon
     #   Bacon.performSelector('run', withObject:nil, afterDelay:0)
     def run
       @timer ||= Time.now
-      self.performSelector("run_all_specs_concurrent", withObject:nil, afterDelay:0)
+      self.performSelector(concurrent? ? "run_all_specs_concurrent" : "run_all_specs_serial", withObject:nil, afterDelay:0)
       NSApplication.sharedApplication.run
+    end
+
+    def run_all_specs_serial
+      contexts.each do |context|
+        context.specifications.each do |spec|
+          begin
+            spec.run
+          rescue Object => e
+            puts "An error bubbled up, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+            raise e
+          end
+        end
+      end
+      bacon_did_finish
     end
 
     def run_all_specs_concurrent
@@ -77,7 +88,7 @@ module Bacon
               spec.performSelector('run', withObject:nil, afterDelay:0)
               CFRunLoopRun() unless context.run_on_main_thread? # Should already have a running runloop!
             rescue Object => e
-              puts "An error occurred on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
+              puts "An error bubbled up on a GCD thread, this should really not happen! The error was: #{e.message}\n\t#{e.backtrace.join("\n\t")}"
             end
           end
         end
@@ -86,13 +97,7 @@ module Bacon
       #group.notify(main_queue) do
       group.notify(concurrent_queue) do
         #Dispatch::Queue.main.sync do
-        Bacon.dispatch_on_main_thread do
-          if delegate.respond_to?('bacon_did_finish')
-            delegate.bacon_did_finish
-          end
-          handle_summary
-          exit Counter.not_passed
-        end
+        Bacon.dispatch_on_main_thread { bacon_did_finish }
       end
     end
 
@@ -105,13 +110,28 @@ module Bacon
       end
     end
 
+    private
+
+    def bacon_did_finish
+      if delegate.respond_to?('bacon_did_finish')
+        delegate.bacon_did_finish
+      end
+      handle_summary
+      exit Counter.not_passed
+    end
+
   end
 
-  self.restrict_name = //
+
+  Shared = Hash.new { |_, name|
+    raise NameError, "no such context: #{name.inspect}"
+  }
+
+  self.restrict_name    = //
   self.restrict_context = //
-  self.backtraces = true
-  # TODO for now we always run concurrent, because I ripped out the code needed for non-concurrent running
-  self.concurrent = true
+  self.backtraces       = true
+  self.concurrent       = false
+
 
   module Counter
     class << self
@@ -136,6 +156,7 @@ module Bacon
       end
     end
   end
+
 
   # TODO for now we'll just use dots, which works best in a concurrent env
   module SpecDoxOutput
@@ -183,8 +204,8 @@ module Bacon
       puts summary
     end
   end
+  extend SpecDoxOutput
 
-  extend SpecDoxOutput          # default
 
   class Error < RuntimeError
     attr_accessor :count_as
@@ -202,6 +223,7 @@ module Bacon
       @count_as == :error
     end
   end
+
 
   class Context
     attr_reader :specification
@@ -275,6 +297,7 @@ module Bacon
       end
     end
   end # Context
+
 
   class Specification
     attr_reader :description, :context
