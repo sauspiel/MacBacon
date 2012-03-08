@@ -315,7 +315,9 @@ module Bacon
       def it(description, &block)
         return  unless description =~ Bacon.restrict_name
         block ||= lambda { should.flunk "not implemented" }
-        @specifications << Specification.new(self, description, block, @before, @after)
+        spec = Specification.new(self, description, block, @before, @after)
+        @specifications << spec
+        spec
       end
 
       def describe(*args, &block)
