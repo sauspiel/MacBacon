@@ -453,12 +453,15 @@ module Bacon
       end
     end
 
+    def filtered_backtrace
+      $DEBUG ? @exception.backtrace : @exception.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
+    end
+
     def error_log
       if @exception
         log = ''
         log << "#{@exception.class}: #{@exception.message}\n"
-        lines = $DEBUG ? @exception.backtrace : @exception.backtrace.find_all { |line| line !~ /bin\/macbacon|\/mac_bacon\.rb:\d+/ }
-        lines.each_with_index { |line, i|
+        filtered_backtrace.each_with_index { |line, i|
           log << "\t#{line}#{i==0 ? ": #{@context.class.name} - #{@description}" : ""}\n"
         }
         log
