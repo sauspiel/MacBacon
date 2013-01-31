@@ -19,7 +19,7 @@ module Bacon
 
 
   class << self
-    attr_accessor :restrict_name, :restrict_context
+    attr_accessor :restrict_name
 
     attr_accessor :backtraces
 
@@ -129,10 +129,9 @@ module Bacon
     raise NameError, "no such context: #{name.inspect}"
   }
 
-  self.restrict_name    = //
-  self.restrict_context = //
-  self.backtraces       = true
-  self.concurrent       = false
+  self.restrict_name = //
+  self.backtraces    = true
+  self.concurrent    = false
 
 
   module Counter
@@ -313,7 +312,7 @@ module Bacon
       end
 
       def it(description, &block)
-        return  unless description =~ Bacon.restrict_name
+        return unless "#{@name} #{description}" =~ Bacon.restrict_name
         block ||= lambda { should.flunk "not implemented" }
         spec = Specification.new(self, description, block, @before, @after)
         @specifications << spec
