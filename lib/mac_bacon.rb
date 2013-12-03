@@ -547,8 +547,8 @@ class Should
     end
   end
 
-%w(a an be).each do |meth|
-    define_method(meth) do |args, &block|
+%w(a an be should).each do |meth|
+    define_method(meth) do |*args, &block|
         if args.empty?
             self
             else
