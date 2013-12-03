@@ -6,7 +6,7 @@
 #
 # Bacon is freely distributable under the terms of an MIT-style license.
 # See COPYING or http://www.opensource.org/licenses/mit-license.php.
-
+NSLog("a");
 framework "Cocoa"
 require "mac_bacon/helpers"
 
@@ -547,17 +547,16 @@ class Should
     end
   end
 
-  def be(*args, &block)
-    if args.empty?
-      self
-    else
-      block = args.shift  unless block_given?
-      satisfy(*args, &block)
+%w(a an be).each do |meth|
+    define_method(meth) do |args, &block|
+        if args.empty?
+            self
+            else
+            block = args.shift  unless block_given?
+            satisfy(*args, &block)
+        end
     end
-  end
-
-  alias a  be
-  alias an be
+end
 
   def satisfy(*args, &block)
     if args.size == 1 && String === args.first
@@ -589,7 +588,7 @@ class Should
   def equal(value)         self == value      end
   def match(value)         self =~ value      end
   def identical_to(value)  self.equal? value  end
-  alias same_as identical_to
+  def same_as(value)       identical_to value end
 
   def flunk(reason="Flunked")
     raise Bacon::Error.new(:failed, reason)
